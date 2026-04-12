@@ -12,59 +12,59 @@ const COLORS = {
   Burgeria: "#f97316", Outros: "#94a3b8",
 };
 
-const MONTHS = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+const MONTHS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 const now = new Date();
 const fmt = (v) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 const initialTransactions = [
   // Nubank Abril 2026
-  { id: 101, tipo: "receita",  categoria: "Outros",    descricao: "Pix recebido - Itaú (Paloma)",         valor: 3500.00, data: "2026-04-01" },
-  { id: 102, tipo: "receita",  categoria: "Outros",    descricao: "Pix recebido - Itaú (Paloma)",         valor: 785.00,  data: "2026-04-01" },
-  { id: 103, tipo: "despesa",  categoria: "Moradia",   descricao: "Boleto GCI CAIXA - Habitação",         valor: 1715.04, data: "2026-04-01" },
-  { id: 104, tipo: "despesa",  categoria: "Outros",    descricao: "Resgate de empréstimo",                valor: 1538.35, data: "2026-04-01" },
-  { id: 105, tipo: "despesa",  categoria: "Burgeria",  descricao: "Pix DRY (Stone) - Fornecedor",        valor: 30.00,   data: "2026-04-02" },
-  { id: 106, tipo: "receita",  categoria: "Outros",    descricao: "Pix recebido - Carlos Vinicius",       valor: 50.00,   data: "2026-04-03" },
-  { id: 107, tipo: "despesa",  categoria: "Burgeria",  descricao: "Terra Brasili - Alimentos (atacado)",  valor: 279.40,  data: "2026-04-03" },
-  { id: 108, tipo: "despesa",  categoria: "Outros",    descricao: "Pix Jonas Gomes",                     valor: 8.50,    data: "2026-04-03" },
-  { id: 109, tipo: "receita",  categoria: "Outros",    descricao: "Pix recebido - Carlos Vinicius",       valor: 30.00,   data: "2026-04-04" },
-  { id: 110, tipo: "despesa",  categoria: "Outros",    descricao: "Pix Adailton Felipe",                  valor: 37.00,   data: "2026-04-04" },
-  { id: 111, tipo: "receita",  categoria: "Burgeria",  descricao: "Pix recebido - CNPJ Burgeria (Stone)", valor: 326.33,  data: "2026-04-08" },
-  { id: 112, tipo: "despesa",  categoria: "Outros",    descricao: "Boleto GUUG",                          valor: 354.92,  data: "2026-04-08" },
-  { id: 113, tipo: "despesa",  categoria: "Outros",    descricao: "Pix enviado - Paloma Itaú",            valor: 0.24,    data: "2026-04-08" },
-  { id: 114, tipo: "receita",  categoria: "Outros",    descricao: "Pix recebido - Patricia Laurindo",     valor: 20.00,   data: "2026-04-09" },
-  { id: 115, tipo: "receita",  categoria: "Outros",    descricao: "Pix recebido - Paula Laurindo",        valor: 20.00,   data: "2026-04-09" },
-  { id: 116, tipo: "despesa",  categoria: "Burgeria",  descricao: "Rio Atacadão - Alimentos (atacado)",   valor: 206.85,  data: "2026-04-09" },
-  { id: 117, tipo: "despesa",  categoria: "Burgeria",  descricao: "Boi Bom do Ceasa - Açougue",           valor: 187.41,  data: "2026-04-09" },
-  { id: 118, tipo: "despesa",  categoria: "Transporte",descricao: "EIA Transportes e Distribuição",       valor: 115.00,  data: "2026-04-09" },
-  { id: 119, tipo: "despesa",  categoria: "Burgeria",  descricao: "Nechio Congelados",                    valor: 202.83,  data: "2026-04-09" },
-  { id: 120, tipo: "despesa",  categoria: "Outros",    descricao: "Pix Victor Fuzi Andrade",              valor: 28.31,   data: "2026-04-09" },
+  { id: 101, tipo: "receita", categoria: "Outros", descricao: "Pix recebido - Itaú (Paloma)", valor: 3500.00, data: "2026-04-01" },
+  { id: 102, tipo: "receita", categoria: "Outros", descricao: "Pix recebido - Itaú (Paloma)", valor: 785.00, data: "2026-04-01" },
+  { id: 103, tipo: "despesa", categoria: "Moradia", descricao: "Boleto GCI CAIXA - Habitação", valor: 1715.04, data: "2026-04-01" },
+  { id: 104, tipo: "despesa", categoria: "Outros", descricao: "Resgate de empréstimo", valor: 1538.35, data: "2026-04-01" },
+  { id: 105, tipo: "despesa", categoria: "Burgeria", descricao: "Pix DRY (Stone) - Fornecedor", valor: 30.00, data: "2026-04-02" },
+  { id: 106, tipo: "receita", categoria: "Outros", descricao: "Pix recebido - Carlos Vinicius", valor: 50.00, data: "2026-04-03" },
+  { id: 107, tipo: "despesa", categoria: "Burgeria", descricao: "Terra Brasili - Alimentos (atacado)", valor: 279.40, data: "2026-04-03" },
+  { id: 108, tipo: "despesa", categoria: "Outros", descricao: "Pix Jonas Gomes", valor: 8.50, data: "2026-04-03" },
+  { id: 109, tipo: "receita", categoria: "Outros", descricao: "Pix recebido - Carlos Vinicius", valor: 30.00, data: "2026-04-04" },
+  { id: 110, tipo: "despesa", categoria: "Outros", descricao: "Pix Adailton Felipe", valor: 37.00, data: "2026-04-04" },
+  { id: 111, tipo: "receita", categoria: "Burgeria", descricao: "Pix recebido - CNPJ Burgeria (Stone)", valor: 326.33, data: "2026-04-08" },
+  { id: 112, tipo: "despesa", categoria: "Outros", descricao: "Boleto GUUG", valor: 354.92, data: "2026-04-08" },
+  { id: 113, tipo: "despesa", categoria: "Outros", descricao: "Pix enviado - Paloma Itaú", valor: 0.24, data: "2026-04-08" },
+  { id: 114, tipo: "receita", categoria: "Outros", descricao: "Pix recebido - Patricia Laurindo", valor: 20.00, data: "2026-04-09" },
+  { id: 115, tipo: "receita", categoria: "Outros", descricao: "Pix recebido - Paula Laurindo", valor: 20.00, data: "2026-04-09" },
+  { id: 116, tipo: "despesa", categoria: "Burgeria", descricao: "Rio Atacadão - Alimentos (atacado)", valor: 206.85, data: "2026-04-09" },
+  { id: 117, tipo: "despesa", categoria: "Burgeria", descricao: "Boi Bom do Ceasa - Açougue", valor: 187.41, data: "2026-04-09" },
+  { id: 118, tipo: "despesa", categoria: "Transporte", descricao: "EIA Transportes e Distribuição", valor: 115.00, data: "2026-04-09" },
+  { id: 119, tipo: "despesa", categoria: "Burgeria", descricao: "Nechio Congelados", valor: 202.83, data: "2026-04-09" },
+  { id: 120, tipo: "despesa", categoria: "Outros", descricao: "Pix Victor Fuzi Andrade", valor: 28.31, data: "2026-04-09" },
   // Itaú Abril 2026
-  { id: 201, tipo: "receita",  categoria: "Salário",   descricao: "Pagamento de Salário - Itaú",          valor: 4285.00, data: "2026-04-01" },
-  { id: 202, tipo: "despesa",  categoria: "Outros",    descricao: "IOF - Itaú",                           valor: 0.42,    data: "2026-04-02" },
-  { id: 203, tipo: "receita",  categoria: "Burgeria",  descricao: "Pix recebido 30.375 - Burgeria",       valor: 0.24,    data: "2026-04-08" },
+  { id: 201, tipo: "receita", categoria: "Salário", descricao: "Pagamento de Salário - Itaú", valor: 4285.00, data: "2026-04-01" },
+  { id: 202, tipo: "despesa", categoria: "Outros", descricao: "IOF - Itaú", valor: 0.42, data: "2026-04-02" },
+  { id: 203, tipo: "receita", categoria: "Burgeria", descricao: "Pix recebido 30.375 - Burgeria", valor: 0.24, data: "2026-04-08" },
   // Itaú Março 2026
-  { id: 301, tipo: "receita",  categoria: "Burgeria",  descricao: "Pix recebido 30.375 - Burgeria",       valor: 13.35,   data: "2026-03-13" },
-  { id: 302, tipo: "despesa",  categoria: "Outros",    descricao: "Seguro LIS Itaú",                      valor: 13.35,   data: "2026-03-11" },
-  { id: 303, tipo: "despesa",  categoria: "Outros",    descricao: "Juros Limite da Conta - Itaú",         valor: 228.89,  data: "2026-03-10" },
-  { id: 304, tipo: "despesa",  categoria: "Outros",    descricao: "Pix enviado Paloma 07/03",             valor: 228.00,  data: "2026-03-09" },
-  { id: 305, tipo: "receita",  categoria: "Outros",    descricao: "Pix recebido Paloma 09/03",            valor: 228.00,  data: "2026-03-09" },
-  { id: 306, tipo: "receita",  categoria: "Salário",   descricao: "Pagamento de Salário - Itaú",          valor: 4666.15, data: "2026-03-06" },
-  { id: 307, tipo: "despesa",  categoria: "Outros",    descricao: "Pix enviado Paloma 06/03",             valor: 2056.39, data: "2026-03-06" },
-  { id: 308, tipo: "despesa",  categoria: "Outros",    descricao: "Fatura paga Itaú Uniclass",            valor: 1162.00, data: "2026-03-06" },
-  { id: 309, tipo: "despesa",  categoria: "Outros",    descricao: "Pix enviado Paloma 06/03",             valor: 1218.87, data: "2026-03-06" },
-  { id: 310, tipo: "receita",  categoria: "Outros",    descricao: "Pix recebido Paloma 03/03",            valor: 26.10,   data: "2026-03-03" },
-  { id: 311, tipo: "despesa",  categoria: "Outros",    descricao: "IOF - Itaú",                           valor: 26.10,   data: "2026-03-03" },
-  { id: 312, tipo: "receita",  categoria: "Salário",   descricao: "Pagamento de Salário - Itaú",          valor: 4258.00, data: "2026-03-02" },
-  { id: 313, tipo: "receita",  categoria: "Burgeria",  descricao: "Pix recebido 30.375 - Burgeria",       valor: 200.00,  data: "2026-03-02" },
-  { id: 314, tipo: "receita",  categoria: "Burgeria",  descricao: "Pix recebido 30.375 - Burgeria",       valor: 111.66,  data: "2026-03-02" },
+  { id: 301, tipo: "receita", categoria: "Burgeria", descricao: "Pix recebido 30.375 - Burgeria", valor: 13.35, data: "2026-03-13" },
+  { id: 302, tipo: "despesa", categoria: "Outros", descricao: "Seguro LIS Itaú", valor: 13.35, data: "2026-03-11" },
+  { id: 303, tipo: "despesa", categoria: "Outros", descricao: "Juros Limite da Conta - Itaú", valor: 228.89, data: "2026-03-10" },
+  { id: 304, tipo: "despesa", categoria: "Outros", descricao: "Pix enviado Paloma 07/03", valor: 228.00, data: "2026-03-09" },
+  { id: 305, tipo: "receita", categoria: "Outros", descricao: "Pix recebido Paloma 09/03", valor: 228.00, data: "2026-03-09" },
+  { id: 306, tipo: "receita", categoria: "Salário", descricao: "Pagamento de Salário - Itaú", valor: 4666.15, data: "2026-03-06" },
+  { id: 307, tipo: "despesa", categoria: "Outros", descricao: "Pix enviado Paloma 06/03", valor: 2056.39, data: "2026-03-06" },
+  { id: 308, tipo: "despesa", categoria: "Outros", descricao: "Fatura paga Itaú Uniclass", valor: 1162.00, data: "2026-03-06" },
+  { id: 309, tipo: "despesa", categoria: "Outros", descricao: "Pix enviado Paloma 06/03", valor: 1218.87, data: "2026-03-06" },
+  { id: 310, tipo: "receita", categoria: "Outros", descricao: "Pix recebido Paloma 03/03", valor: 26.10, data: "2026-03-03" },
+  { id: 311, tipo: "despesa", categoria: "Outros", descricao: "IOF - Itaú", valor: 26.10, data: "2026-03-03" },
+  { id: 312, tipo: "receita", categoria: "Salário", descricao: "Pagamento de Salário - Itaú", valor: 4258.00, data: "2026-03-02" },
+  { id: 313, tipo: "receita", categoria: "Burgeria", descricao: "Pix recebido 30.375 - Burgeria", valor: 200.00, data: "2026-03-02" },
+  { id: 314, tipo: "receita", categoria: "Burgeria", descricao: "Pix recebido 30.375 - Burgeria", valor: 111.66, data: "2026-03-02" },
   // Itaú Fevereiro 2026
-  { id: 401, tipo: "despesa",  categoria: "Transporte",descricao: "Pagamento Boleto DETRAN RJ",            valor: 293.71,  data: "2026-02-20" },
-  { id: 402, tipo: "despesa",  categoria: "Outros",    descricao: "Pgto Min - Itaucard",                  valor: 258.35,  data: "2026-02-20" },
-  { id: 403, tipo: "despesa",  categoria: "Outros",    descricao: "Seguro LIS Itaú",                      valor: 13.24,   data: "2026-02-11" },
-  { id: 404, tipo: "despesa",  categoria: "Outros",    descricao: "Juros Limite da Conta - Itaú",         valor: 204.96,  data: "2026-02-10" },
-  { id: 405, tipo: "despesa",  categoria: "Outros",    descricao: "Pix enviado Carlos 07/02",             valor: 100.00,  data: "2026-02-09" },
-  { id: 406, tipo: "receita",  categoria: "Burgeria",  descricao: "Pix recebido 30.375 - Burgeria",       valor: 414.34,  data: "2026-02-09" },
-  { id: 407, tipo: "despesa",  categoria: "Outros",    descricao: "Pix enviado Carlos 09/02",             valor: 150.00,  data: "2026-02-09" },
+  { id: 401, tipo: "despesa", categoria: "Transporte", descricao: "Pagamento Boleto DETRAN RJ", valor: 293.71, data: "2026-02-20" },
+  { id: 402, tipo: "despesa", categoria: "Outros", descricao: "Pgto Min - Itaucard", valor: 258.35, data: "2026-02-20" },
+  { id: 403, tipo: "despesa", categoria: "Outros", descricao: "Seguro LIS Itaú", valor: 13.24, data: "2026-02-11" },
+  { id: 404, tipo: "despesa", categoria: "Outros", descricao: "Juros Limite da Conta - Itaú", valor: 204.96, data: "2026-02-10" },
+  { id: 405, tipo: "despesa", categoria: "Outros", descricao: "Pix enviado Carlos 07/02", valor: 100.00, data: "2026-02-09" },
+  { id: 406, tipo: "receita", categoria: "Burgeria", descricao: "Pix recebido 30.375 - Burgeria", valor: 414.34, data: "2026-02-09" },
+  { id: 407, tipo: "despesa", categoria: "Outros", descricao: "Pix enviado Carlos 09/02", valor: 150.00, data: "2026-02-09" },
 ];
 
 const initialMetas = [
@@ -240,6 +240,32 @@ Categorias: Salário, Freelance, Investimentos, Moradia, Alimentação, Transpor
   );
 }
 
+function gerarRecorrencias(transactions, mes, ano) {
+  const novas = [];
+
+  transactions.forEach(t => {
+    if (!t.recorrente) return;
+
+    const dataOriginal = new Date(t.data);
+    const fim = t.fimRecorrencia ? new Date(t.fimRecorrencia) : null;
+    const dataAtual = new Date(ano, mes, dataOriginal.getDate());
+
+    // ⛔ se passou do fim
+    if (fim && dataAtual > fim) return;
+
+    // só gera se for mês válido
+    if (dataAtual >= dataOriginal) {
+      novas.push({
+        ...t,
+        id: `${t.id}-${mes}-${ano}`,
+        data: dataAtual.toISOString().split("T")[0]
+      });
+    }
+  });
+
+  return novas;
+}
+
 export default function App() {
   const [tab, setTab] = useState("dashboard");
   const [transactions, setTransactions] = useState(initialTransactions);
@@ -248,21 +274,50 @@ export default function App() {
   const [showForm, setShowForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showMetaForm, setShowMetaForm] = useState(false);
-  const [form, setForm] = useState({ tipo: "despesa", categoria: "", descricao: "", valor: "", data: new Date().toISOString().split("T")[0] });
+  const [form, setForm] = useState({
+    tipo: "despesa",
+    categoria: "",
+    descricao: "",
+    valor: "",
+    data: new Date().toISOString().split("T")[0],
+
+    recorrente: false,
+    tipoRecorrencia: "mensal",
+    fimRecorrencia: "",
+
+    parcelado: false,
+    totalParcelas: 1
+  });
   const [metaForm, setMetaForm] = useState({ nome: "", alvo: "", atual: "", cor: "#6366f1" });
   const [filtroMes, setFiltroMes] = useState(3); // Abril
   const [filtroAno, setFiltroAno] = useState(2026);
   const [aporteMeta, setAporteMeta] = useState({});
   const [importSuccess, setImportSuccess] = useState(0);
 
-  const transacoesMes = useMemo(() => transactions.filter(t => {
-    const d = new Date(t.data);
-    return d.getMonth() === filtroMes && d.getFullYear() === filtroAno;
-  }), [transactions, filtroMes, filtroAno]);
+  const transacoesMes = useMemo(() => {
+    const base = transactions.filter(t => {
+      const d = new Date(t.data);
+      return d.getMonth() === filtroMes && d.getFullYear() === filtroAno;
+    });
 
+    const recorrentes = gerarRecorrencias(transactions, filtroMes, filtroAno);
+
+    return [...base, ...recorrentes];
+  }, [transactions, filtroMes, filtroAno]);
   const totalReceitas = useMemo(() => transacoesMes.filter(t => t.tipo === "receita").reduce((s, t) => s + t.valor, 0), [transacoesMes]);
   const totalDespesas = useMemo(() => transacoesMes.filter(t => t.tipo === "despesa").reduce((s, t) => s + t.valor, 0), [transacoesMes]);
   const saldo = totalReceitas - totalDespesas;
+
+  const despesasFuturas = 0; // pode evoluir depois
+  const faturaCartao = 0; // depois você implementa
+
+  const saldoReal = totalReceitas - totalDespesas - despesasFuturas - faturaCartao;
+
+  const hoje = new Date();
+  const ultimoDia = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+  const diasRestantes = ultimoDia.getDate() - hoje.getDate();
+
+  const limiteDiario = diasRestantes > 0 ? saldoReal / diasRestantes : saldoReal;
 
   const gastosPorCategoria = useMemo(() => {
     const map = {};
@@ -272,11 +327,41 @@ export default function App() {
 
   const addTransaction = () => {
     if (!form.categoria || !form.valor || !form.data) return;
-    setTransactions(prev => [...prev, { ...form, id: Date.now(), valor: parseFloat(form.valor) }]);
-    setForm({ tipo: "despesa", categoria: "", descricao: "", valor: "", data: new Date().toISOString().split("T")[0] });
+
+    const valor = parseFloat(form.valor);
+
+    // 💳 PARCELADO
+    if (form.parcelado && form.totalParcelas > 1) {
+      const parcelas = [];
+
+      for (let i = 0; i < form.totalParcelas; i++) {
+        const data = new Date(form.data);
+        data.setMonth(data.getMonth() + i);
+
+        parcelas.push({
+          ...form,
+          id: Date.now() + i,
+          valor: valor / form.totalParcelas,
+          descricao: `${form.descricao} (${i + 1}/${form.totalParcelas})`,
+          data: data.toISOString().split("T")[0],
+          parcelado: true
+        });
+      }
+
+      setTransactions(prev => [...prev, ...parcelas]);
+    } else {
+      setTransactions(prev => [
+        ...prev,
+        {
+          ...form,
+          id: Date.now(),
+          valor
+        }
+      ]);
+    }
+
     setShowForm(false);
   };
-
   const handleImportConfirm = (newTs) => {
     setTransactions(prev => [...prev, ...newTs]);
     setImportSuccess(newTs.length);
@@ -304,7 +389,13 @@ export default function App() {
   };
   const removeMeta = (id) => setMetas(prev => prev.filter(m => m.id !== id));
   const totalOrcamento = Object.values(orcamento).reduce((s, v) => s + v, 0);
+  const mensagem = saldoReal > 0
+    ? `Você ainda tem ${fmt(saldoReal)} até o fim do mês`
+    : `Você já estourou ${fmt(Math.abs(saldoReal))}`;
 
+  const porcentagemGasto = totalReceitas > 0
+    ? totalDespesas / totalReceitas
+    : 0;
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", background: "#0f0f14", minHeight: "100vh", color: "#f1f5f9", maxWidth: 430, margin: "0 auto", position: "relative", paddingBottom: 80 }}>
       <style>{`
@@ -366,6 +457,26 @@ export default function App() {
       <div style={{ padding: "0 16px" }} className="fade-in">
         {/* DASHBOARD */}
         {tab === "dashboard" && (<>
+          <div style={{
+            background: "rgba(99,102,241,0.1)",
+            border: "1px solid rgba(99,102,241,0.2)",
+            borderRadius: 16,
+            padding: 16,
+            marginBottom: 12
+          }}>
+            <p style={{ fontSize: 12, color: "#6b7280" }}>Saldo real disponível</p>
+            <h3 style={{ fontSize: 20, fontWeight: 700 }}>
+              {fmt(saldoReal)}
+            </h3>
+
+            <p style={{ fontSize: 12, marginTop: 8, color: "#a5b4fc" }}>
+              {mensagem}
+            </p>
+
+            <p style={{ fontSize: 12, marginTop: 4 }}>
+              Você pode gastar até <strong>{fmt(limiteDiario)}</strong> por dia
+            </p>
+          </div>
           <button className="btn" onClick={() => { setTab("transacoes"); setShowImport(true); }}
             style={{ width: "100%", background: "linear-gradient(135deg, rgba(249,115,22,0.12), rgba(251,146,60,0.08))", border: "1px solid rgba(249,115,22,0.25)", color: "#fb923c", padding: "12px 16px", borderRadius: 14, display: "flex", alignItems: "center", gap: 10, marginBottom: 12, fontSize: 13 }}>
             <span style={{ fontSize: 22 }}>📎</span>
@@ -377,6 +488,19 @@ export default function App() {
           </button>
 
           {/* Burgeria highlight */}
+          {porcentagemGasto > 0.8 && (
+            <div style={{
+              background: "rgba(248,113,113,0.1)",
+              border: "1px solid rgba(248,113,113,0.3)",
+              borderRadius: 12,
+              padding: 10,
+              marginBottom: 12,
+              color: "#f87171",
+              fontSize: 12
+            }}>
+              ⚠️ Você já gastou mais de 80% da sua renda
+            </div>
+          )}
           {(() => {
             const burgeriaReceitas = transacoesMes.filter(t => t.tipo === "receita" && t.categoria === "Burgeria").reduce((s, t) => s + t.valor, 0);
             const burgeriaDespesas = transacoesMes.filter(t => t.tipo === "despesa" && t.categoria === "Burgeria").reduce((s, t) => s + t.valor, 0);
@@ -609,6 +733,51 @@ export default function App() {
                 </button>
               ))}
             </div>
+            <label style={{ fontSize: 12 }}>
+              <input
+                type="checkbox"
+                checked={form.recorrente}
+                onChange={e => setForm(f => ({ ...f, recorrente: e.target.checked }))}
+              />
+              Transação recorrente
+            </label>
+
+            {form.recorrente && (
+              <select
+                className="select"
+                value={form.tipoRecorrencia}
+                onChange={e => setForm(f => ({ ...f, tipoRecorrencia: e.target.value }))}
+              >
+                <option value="mensal">Mensal</option>
+                <option value="semanal">Semanal</option>
+              </select>
+            )}
+            <label style={{ fontSize: 12 }}>
+              <input
+                type="checkbox"
+                checked={form.parcelado}
+                onChange={e => setForm(f => ({ ...f, parcelado: e.target.checked }))}
+              />
+              Compra parcelada
+            </label>
+
+            {form.parcelado && (
+              <input
+                className="input"
+                type="number"
+                placeholder="Número de parcelas"
+                value={form.totalParcelas}
+                onChange={e => setForm(f => ({ ...f, totalParcelas: e.target.value }))}
+              />
+            )}
+            {form.recorrente && (
+              <input
+                className="input"
+                type="date"
+                value={form.fimRecorrencia}
+                onChange={e => setForm(f => ({ ...f, fimRecorrencia: e.target.value }))}
+              />
+            )}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <select className="select" value={form.categoria} onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))}>
                 <option value="">Categoria</option>
@@ -632,7 +801,7 @@ export default function App() {
               <input className="input" type="number" placeholder="Valor alvo (R$)" value={metaForm.alvo} onChange={e => setMetaForm(f => ({ ...f, alvo: e.target.value }))} />
               <input className="input" type="number" placeholder="Já economizado (R$)" value={metaForm.atual} onChange={e => setMetaForm(f => ({ ...f, atual: e.target.value }))} />
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {["#6366f1","#10b981","#f59e0b","#f87171","#60a5fa","#ec4899","#f97316"].map(cor => (
+                {["#6366f1", "#10b981", "#f59e0b", "#f87171", "#60a5fa", "#ec4899", "#f97316"].map(cor => (
                   <button key={cor} className="btn" onClick={() => setMetaForm(f => ({ ...f, cor }))}
                     style={{ width: 32, height: 32, borderRadius: 8, background: cor, border: metaForm.cor === cor ? "3px solid #fff" : "3px solid transparent" }} />
                 ))}

@@ -1,8 +1,22 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { buildProjection } from "./services/projectionEngine";
+import HorizonPage from "./pages/HorizonPage";
+import PlanningPage from "./pages/PlanningPage";
+import AuthGate from "./components/AuthGate";
+import { listTransactions, createTransactions, deleteTransaction } from "./services/financeRepository";
+import {
+  listAccounts, createAccount, deleteAccount,
+  listSavingsGoals, createSavingsGoal, updateSavingsGoal, deleteSavingsGoal,
+  listCards, createCard, deleteCard,
+  listCardPurchases, createCardPurchase, deleteCardPurchase,
+  buildCardProjectionTransactions,
+} from "./services/planningRepository";
+import { formatDateBr, parseLocalDate, todayLocalIso, toLocalIso } from "./utils/dateUtils";
 
 const CATEGORIES = {
   receita: ["Salário", "Freelance", "Investimentos", "Burgeria", "Outros"],
   despesa: ["Moradia", "Alimentação", "Transporte", "Saúde", "Lazer", "Educação", "Burgeria", "Outros"],
+  diario: ["Combustível", "Farmácia", "Padaria", "Mercado", "Lazer", "Cuidados pessoais", "Outros"],
 };
 
 const COLORS = {
@@ -13,13 +27,13 @@ const COLORS = {
 };
 
 const MONTHS = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-const fmt = (v) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const fmt = (v) => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 // Gera recorrências SEM duplicar transações que já existem naquele mês
 function gerarRecorrencias(transactions, mes, ano) {
   const novas = [];
   const base = transactions.filter(t => {
-    const d = new Date(t.data);
+    const d = parseLocalDate(t.data);
     return d.getMonth() === mes && d.getFullYear() === ano;
   });
   const idsBase = new Set(base.map(t => String(t.id).split("-")[0]));
@@ -30,8 +44,8 @@ function gerarRecorrencias(transactions, mes, ano) {
     // Se já existe uma transação original desse id neste mês, não duplica
     if (idsBase.has(idBase)) return;
 
-    const dataOriginal = new Date(t.data);
-    const fim = t.fimRecorrencia ? new Date(t.fimRecorrencia) : null;
+    const dataOriginal = parseLocalDate(t.data);
+    const fim = t.fimRecorrencia ? parseLocalDate(t.fimRecorrencia) : null;
     const diaOriginal = dataOriginal.getDate();
     const dataAtual = new Date(ano, mes, Math.min(diaOriginal, new Date(ano, mes + 1, 0).getDate()));
 
@@ -47,58 +61,9 @@ function gerarRecorrencias(transactions, mes, ano) {
   return novas;
 }
 
-const initialTransactions = [
-  { id: 101, tipo: "receita",  categoria: "Outros",     descricao: "Pix recebido - Itaú (Paloma)",          valor: 3500.00, data: "2026-04-01" },
-  { id: 102, tipo: "receita",  categoria: "Outros",     descricao: "Pix recebido - Itaú (Paloma)",          valor: 785.00,  data: "2026-04-01" },
-  { id: 103, tipo: "despesa",  categoria: "Moradia",    descricao: "Boleto GCI CAIXA - Habitação",          valor: 1715.04, data: "2026-04-01" },
-  { id: 104, tipo: "despesa",  categoria: "Outros",     descricao: "Resgate de empréstimo",                 valor: 1538.35, data: "2026-04-01" },
-  { id: 105, tipo: "despesa",  categoria: "Burgeria",   descricao: "Pix DRY (Stone) - Fornecedor",         valor: 30.00,   data: "2026-04-02" },
-  { id: 106, tipo: "receita",  categoria: "Outros",     descricao: "Pix recebido - Carlos Vinicius",        valor: 50.00,   data: "2026-04-03" },
-  { id: 107, tipo: "despesa",  categoria: "Burgeria",   descricao: "Terra Brasili - Alimentos (atacado)",   valor: 279.40,  data: "2026-04-03" },
-  { id: 108, tipo: "despesa",  categoria: "Outros",     descricao: "Pix Jonas Gomes",                      valor: 8.50,    data: "2026-04-03" },
-  { id: 109, tipo: "receita",  categoria: "Outros",     descricao: "Pix recebido - Carlos Vinicius",        valor: 30.00,   data: "2026-04-04" },
-  { id: 110, tipo: "despesa",  categoria: "Outros",     descricao: "Pix Adailton Felipe",                   valor: 37.00,   data: "2026-04-04" },
-  { id: 111, tipo: "receita",  categoria: "Burgeria",   descricao: "Pix recebido - CNPJ Burgeria (Stone)",  valor: 326.33,  data: "2026-04-08" },
-  { id: 112, tipo: "despesa",  categoria: "Outros",     descricao: "Boleto GUUG",                           valor: 354.92,  data: "2026-04-08" },
-  { id: 113, tipo: "despesa",  categoria: "Outros",     descricao: "Pix enviado - Paloma Itaú",             valor: 0.24,    data: "2026-04-08" },
-  { id: 114, tipo: "receita",  categoria: "Outros",     descricao: "Pix recebido - Patricia Laurindo",      valor: 20.00,   data: "2026-04-09" },
-  { id: 115, tipo: "receita",  categoria: "Outros",     descricao: "Pix recebido - Paula Laurindo",         valor: 20.00,   data: "2026-04-09" },
-  { id: 116, tipo: "despesa",  categoria: "Burgeria",   descricao: "Rio Atacadão - Alimentos (atacado)",    valor: 206.85,  data: "2026-04-09" },
-  { id: 117, tipo: "despesa",  categoria: "Burgeria",   descricao: "Boi Bom do Ceasa - Açougue",            valor: 187.41,  data: "2026-04-09" },
-  { id: 118, tipo: "despesa",  categoria: "Transporte", descricao: "EIA Transportes e Distribuição",        valor: 115.00,  data: "2026-04-09" },
-  { id: 119, tipo: "despesa",  categoria: "Burgeria",   descricao: "Nechio Congelados",                     valor: 202.83,  data: "2026-04-09" },
-  { id: 120, tipo: "despesa",  categoria: "Outros",     descricao: "Pix Victor Fuzi Andrade",               valor: 28.31,   data: "2026-04-09" },
-  { id: 201, tipo: "receita",  categoria: "Salário",    descricao: "Pagamento de Salário - Itaú",           valor: 4285.00, data: "2026-04-01" },
-  { id: 202, tipo: "despesa",  categoria: "Outros",     descricao: "IOF - Itaú",                            valor: 0.42,    data: "2026-04-02" },
-  { id: 203, tipo: "receita",  categoria: "Burgeria",   descricao: "Pix recebido 30.375 - Burgeria",        valor: 0.24,    data: "2026-04-08" },
-  { id: 301, tipo: "receita",  categoria: "Burgeria",   descricao: "Pix recebido 30.375 - Burgeria",        valor: 13.35,   data: "2026-03-13" },
-  { id: 302, tipo: "despesa",  categoria: "Outros",     descricao: "Seguro LIS Itaú",                       valor: 13.35,   data: "2026-03-11" },
-  { id: 303, tipo: "despesa",  categoria: "Outros",     descricao: "Juros Limite da Conta - Itaú",          valor: 228.89,  data: "2026-03-10" },
-  { id: 304, tipo: "despesa",  categoria: "Outros",     descricao: "Pix enviado Paloma 07/03",              valor: 228.00,  data: "2026-03-09" },
-  { id: 305, tipo: "receita",  categoria: "Outros",     descricao: "Pix recebido Paloma 09/03",             valor: 228.00,  data: "2026-03-09" },
-  { id: 306, tipo: "receita",  categoria: "Salário",    descricao: "Pagamento de Salário - Itaú",           valor: 4666.15, data: "2026-03-06" },
-  { id: 307, tipo: "despesa",  categoria: "Outros",     descricao: "Pix enviado Paloma 06/03",              valor: 2056.39, data: "2026-03-06" },
-  { id: 308, tipo: "despesa",  categoria: "Outros",     descricao: "Fatura paga Itaú Uniclass",             valor: 1162.00, data: "2026-03-06" },
-  { id: 309, tipo: "despesa",  categoria: "Outros",     descricao: "Pix enviado Paloma 06/03",              valor: 1218.87, data: "2026-03-06" },
-  { id: 310, tipo: "receita",  categoria: "Outros",     descricao: "Pix recebido Paloma 03/03",             valor: 26.10,   data: "2026-03-03" },
-  { id: 311, tipo: "despesa",  categoria: "Outros",     descricao: "IOF - Itaú",                            valor: 26.10,   data: "2026-03-03" },
-  { id: 312, tipo: "receita",  categoria: "Salário",    descricao: "Pagamento de Salário - Itaú",           valor: 4258.00, data: "2026-03-02" },
-  { id: 313, tipo: "receita",  categoria: "Burgeria",   descricao: "Pix recebido 30.375 - Burgeria",        valor: 200.00,  data: "2026-03-02" },
-  { id: 314, tipo: "receita",  categoria: "Burgeria",   descricao: "Pix recebido 30.375 - Burgeria",        valor: 111.66,  data: "2026-03-02" },
-  { id: 401, tipo: "despesa",  categoria: "Transporte", descricao: "Pagamento Boleto DETRAN RJ",             valor: 293.71,  data: "2026-02-20" },
-  { id: 402, tipo: "despesa",  categoria: "Outros",     descricao: "Pgto Min - Itaucard",                   valor: 258.35,  data: "2026-02-20" },
-  { id: 403, tipo: "despesa",  categoria: "Outros",     descricao: "Seguro LIS Itaú",                       valor: 13.24,   data: "2026-02-11" },
-  { id: 404, tipo: "despesa",  categoria: "Outros",     descricao: "Juros Limite da Conta - Itaú",          valor: 204.96,  data: "2026-02-10" },
-  { id: 405, tipo: "despesa",  categoria: "Outros",     descricao: "Pix enviado Carlos 07/02",              valor: 100.00,  data: "2026-02-09" },
-  { id: 406, tipo: "receita",  categoria: "Burgeria",   descricao: "Pix recebido 30.375 - Burgeria",        valor: 414.34,  data: "2026-02-09" },
-  { id: 407, tipo: "despesa",  categoria: "Outros",     descricao: "Pix enviado Carlos 09/02",              valor: 150.00,  data: "2026-02-09" },
-];
+const initialTransactions = [];
 
-const initialMetas = [
-  { id: 1, nome: "Viagem",               alvo: 8000,  atual: 3200, cor: "#f59e0b" },
-  { id: 2, nome: "Reserva de Emergência",alvo: 15000, atual: 9500, cor: "#6366f1" },
-  { id: 3, nome: "Expansão Burgeria",    alvo: 20000, atual: 0,    cor: "#f97316" },
-];
+const initialMetas = [];
 
 const initialOrcamento = {
   Moradia: 2000, Alimentação: 800, Transporte: 400, Saúde: 300,
@@ -107,7 +72,7 @@ const initialOrcamento = {
 
 const emptyForm = {
   tipo: "despesa", categoria: "", descricao: "", valor: "",
-  data: new Date().toISOString().split("T")[0],
+  data: todayLocalIso(),
   recorrente: false, tipoRecorrencia: "mensal", fimRecorrencia: "",
   parcelado: false, totalParcelas: 2,
 };
@@ -136,31 +101,49 @@ function ImportSheet({ onClose, onConfirm }) {
 
   const analyze = async () => {
     if (!preview) return;
-    setStep("loading"); setError("");
+    setStep("loading");
+    setError("");
+
     try {
-      const contentBlock = preview.type === "pdf"
-        ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: preview.base64 } }
-        : { type: "image", source: { type: "base64", media_type: preview.mediaType, data: preview.base64 } };
-
-      const prompt = `Analise este extrato/documento e extraia TODAS as transações. Retorne SOMENTE JSON:
-{"transacoes":[{"tipo":"despesa","descricao":"desc","valor":100.00,"data":"YYYY-MM-DD","categoria":"Alimentação"}]}
-Categorias: Salário,Freelance,Investimentos,Moradia,Alimentação,Transporte,Saúde,Lazer,Educação,Burgeria,Outros
-Burgeria=fornecedores de alimentos atacado/açougue/congelados ou receitas do CNPJ próprio.
-Data padrão se não encontrar: ${new Date().toISOString().split("T")[0]}`;
-
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, messages: [{ role: "user", content: [contentBlock, { type: "text", text: prompt }] }] }),
+      const res = await fetch("/api/import-transactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          base64: preview.base64,
+          mediaType: preview.mediaType,
+          kind: preview.type,
+        }),
       });
+
       const data = await res.json();
-      const text = data.content?.map(i => i.text || "").join("") || "";
-      const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
-      if (!parsed.transacoes?.length) { setError("Nenhuma transação encontrada."); setStep("upload"); return; }
-      const withIds = parsed.transacoes.map((t, i) => ({ ...t, id: Date.now() + i, valor: Math.abs(parseFloat(t.valor) || 0) }));
+
+      if (!res.ok) {
+        setError(data.error || "Não foi possível analisar o arquivo.");
+        setStep("upload");
+        return;
+      }
+
+      if (!data.transacoes?.length) {
+        setError("Nenhuma transação encontrada.");
+        setStep("upload");
+        return;
+      }
+
+      const withIds = data.transacoes.map((t, i) => ({
+        ...t,
+        id: Date.now() + i,
+        valor: Math.abs(parseFloat(t.valor) || 0),
+      }));
+
       setExtracted(withIds);
-      const sel = {}; withIds.forEach(t => { sel[t.id] = true; }); setSelected(sel);
+      const sel = {};
+      withIds.forEach(t => { sel[t.id] = true; });
+      setSelected(sel);
       setStep("review");
-    } catch { setError("Erro ao analisar. Tente novamente."); setStep("upload"); }
+    } catch {
+      setError("Erro ao analisar. Tente novamente.");
+      setStep("upload");
+    }
   };
 
   const confirm = () => { onConfirm(extracted.filter(t => selected[t.id])); onClose(); };
@@ -175,7 +158,7 @@ Data padrão se não encontrar: ${new Date().toISOString().split("T")[0]}`;
             <button onClick={onClose} style={{ background:"none", border:"none", color:"#6b7280", fontSize:22, cursor:"pointer" }}>✕</button>
           </div>
           <p style={{ fontSize:13, color:"#6b7280", marginBottom:16, lineHeight:1.6 }}>
-            Envie um <strong style={{ color:"#a5b4fc" }}>extrato PDF</strong> ou <strong style={{ color:"#a5b4fc" }}>foto</strong> de boleto. A IA reconhece gastos da <strong style={{ color:"#f97316" }}>Burgeria</strong> automaticamente.
+            Envie um <strong style={{ color:"#a5b4fc" }}>extrato PDF</strong> ou <strong style={{ color:"#a5b4fc" }}>foto</strong> de boleto. O arquivo é processado pelo servidor; nenhuma chave de IA fica exposta no navegador.
           </p>
           <div onDragOver={e=>{e.preventDefault();setDragOver(true)}} onDragLeave={()=>setDragOver(false)}
             onDrop={e=>{e.preventDefault();setDragOver(false);handleFile(e.dataTransfer.files[0])}}
@@ -248,7 +231,7 @@ Data padrão se não encontrar: ${new Date().toISOString().split("T")[0]}`;
 }
 
 // ── Main App ─────────────────────────────────────────────────────────────────
-export default function App() {
+function FinanceApp({ user, onSignOut }) {
   const [tab, setTab] = useState("dashboard");
   const [transactions, setTransactions] = useState(initialTransactions);
   const [metas, setMetas] = useState(initialMetas);
@@ -258,14 +241,52 @@ export default function App() {
   const [showMetaForm, setShowMetaForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [metaForm, setMetaForm] = useState({ nome:"", alvo:"", atual:"", cor:"#6366f1" });
-  const [filtroMes, setFiltroMes] = useState(3);
-  const [filtroAno, setFiltroAno] = useState(2026);
+  const [filtroMes, setFiltroMes] = useState(() => new Date().getMonth());
+  const [filtroAno, setFiltroAno] = useState(() => new Date().getFullYear());
   const [aporteMeta, setAporteMeta] = useState({});
   const [importSuccess, setImportSuccess] = useState(0);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [dataError, setDataError] = useState("");
+  const [formError, setFormError] = useState("");
+  const [saveSuccess, setSaveSuccess] = useState("");
+  const [accounts, setAccounts] = useState([]);
+  const [savingsGoals, setSavingsGoals] = useState([]);
+  const [cards, setCards] = useState([]);
+  const [cardPurchases, setCardPurchases] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    setDataLoading(true);
+
+    Promise.all([
+      listTransactions(),
+      listAccounts(),
+      listSavingsGoals(),
+      listCards(),
+      listCardPurchases(),
+    ])
+      .then(([remoteTransactions, remoteAccounts, remoteGoals, remoteCards, remotePurchases]) => {
+        if (!active) return;
+        setTransactions(remoteTransactions);
+        setAccounts(remoteAccounts);
+        setSavingsGoals(remoteGoals);
+        setCards(remoteCards);
+        setCardPurchases(remotePurchases);
+      })
+      .catch((error) => {
+        console.error("Erro ao carregar dados financeiros", error);
+        if (active) setDataError("Não consegui carregar todos os seus dados do banco.");
+      })
+      .finally(() => {
+        if (active) setDataLoading(false);
+      });
+
+    return () => { active = false; };
+  }, []);
 
   const transacoesMes = useMemo(() => {
     const base = transactions.filter(t => {
-      const d = new Date(t.data);
+      const d = parseLocalDate(t.data);
       return d.getMonth() === filtroMes && d.getFullYear() === filtroAno;
     });
     const recorrentes = gerarRecorrencias(transactions, filtroMes, filtroAno);
@@ -280,10 +301,10 @@ export default function App() {
   const hoje = new Date();
   const estesMesAno = filtroMes === hoje.getMonth() && filtroAno === hoje.getFullYear();
   const receitasFuturas = estesMesAno
-    ? transacoesMes.filter(t => t.tipo === "receita" && new Date(t.data) > hoje).reduce((s, t) => s + t.valor, 0)
+    ? transacoesMes.filter(t => t.tipo === "receita" && parseLocalDate(t.data) > hoje).reduce((s, t) => s + t.valor, 0)
     : 0;
   const despesasFuturas = estesMesAno
-    ? transacoesMes.filter(t => t.tipo === "despesa" && new Date(t.data) > hoje).reduce((s, t) => s + t.valor, 0)
+    ? transacoesMes.filter(t => t.tipo === "despesa" && parseLocalDate(t.data) > hoje).reduce((s, t) => s + t.valor, 0)
     : 0;
 
   // Saldo real = o que já entrou menos o que já saiu
@@ -307,35 +328,90 @@ export default function App() {
     return map;
   }, [transacoesMes]);
 
-  const addTransaction = () => {
-    if (!form.categoria || !form.valor || !form.data) return;
+  const addTransaction = async () => {
+    setFormError("");
+    if (!form.categoria) {
+      setFormError("Selecione uma categoria para continuar.");
+      return;
+    }
+    if (!form.valor || Number(form.valor) <= 0) {
+      setFormError("Informe um valor maior que zero.");
+      return;
+    }
+    if (!form.data) {
+      setFormError("Escolha a data.");
+      return;
+    }
+
     const valor = parseFloat(form.valor);
+    setDataError("");
 
-    if (form.parcelado && parseInt(form.totalParcelas) > 1) {
-      const parcelas = Array.from({ length: parseInt(form.totalParcelas) }, (_, i) => {
-        const d = new Date(form.data);
-        d.setMonth(d.getMonth() + i);
-        return { ...form, id: Date.now() + i, valor: parseFloat((valor / form.totalParcelas).toFixed(2)), descricao: `${form.descricao || form.categoria} (${i+1}/${form.totalParcelas})`, data: d.toISOString().split("T")[0], parcelado: true, recorrente: false };
-      });
-      setTransactions(prev => [...prev, ...parcelas]);
-    } else {
-      setTransactions(prev => [...prev, { ...form, id: Date.now(), valor }]);
+    try {
+      let pending;
+      if (form.tipo !== "diario" && form.parcelado && parseInt(form.totalParcelas) > 1) {
+        pending = Array.from({ length: parseInt(form.totalParcelas) }, (_, i) => {
+          const d = parseLocalDate(form.data);
+          d.setMonth(d.getMonth() + i);
+          return {
+            ...form,
+            valor: parseFloat((valor / form.totalParcelas).toFixed(2)),
+            descricao: `${form.descricao || form.categoria} (${i+1}/${form.totalParcelas})`,
+            data: d.toISOString().split("T")[0],
+            parcelado: true,
+            recorrente: false,
+            numeroParcela: i + 1,
+            totalParcelas: parseInt(form.totalParcelas),
+          };
+        });
+      } else {
+        pending = [{ ...form, valor }];
+      }
+
+      const saved = await createTransactions(pending);
+      setTransactions(prev => [...prev, ...saved]);
+      setForm(emptyForm);
+      setFormError("");
+      setShowForm(false);
+      setSaveSuccess(form.tipo === "diario" ? "Diário salvo com sucesso!" : "Movimentação salva com sucesso!");
+      setTimeout(() => setSaveSuccess(""), 3000);
+    } catch (error) {
+      console.error("Erro ao salvar movimentação", error);
+      setDataError("Não consegui salvar essa movimentação. Tente novamente.");
     }
-    setForm(emptyForm);
-    setShowForm(false);
   };
 
-  const handleImportConfirm = (newTs) => {
-    setTransactions(prev => [...prev, ...newTs]);
-    setImportSuccess(newTs.length);
-    setTimeout(() => setImportSuccess(0), 3500);
-    if (newTs.length > 0) {
-      const d = new Date(newTs[0].data);
+  const handleImportConfirm = async (newTs) => {
+    if (!newTs.length) return;
+    setDataError("");
+    try {
+      const saved = await createTransactions(newTs);
+      setTransactions(prev => [...prev, ...saved]);
+      setImportSuccess(saved.length);
+      setTimeout(() => setImportSuccess(0), 3500);
+      const d = parseLocalDate(saved[0].data);
       setFiltroMes(d.getMonth()); setFiltroAno(d.getFullYear()); setTab("transacoes");
+    } catch (error) {
+      console.error("Erro ao importar movimentações", error);
+      setDataError("A importação foi lida, mas não consegui salvar no banco.");
     }
   };
 
-  const removeTransaction = (id) => setTransactions(prev => prev.filter(t => t.id !== id));
+  const removeTransaction = async (id) => {
+    const transaction = transactions.find(t => t.id === id);
+    const label = transaction?.descricao || transaction?.categoria || "esta movimentação";
+    if (!window.confirm(`Remover "${label}"? Essa ação não pode ser desfeita.`)) return;
+
+    setDataError("");
+    try {
+      await deleteTransaction(id);
+      setTransactions(prev => prev.filter(t => t.id !== id));
+      setSaveSuccess("Movimentação removida.");
+      setTimeout(() => setSaveSuccess(""), 2200);
+    } catch (error) {
+      console.error("Erro ao remover movimentação", error);
+      setDataError("Não consegui remover essa movimentação.");
+    }
+  };
 
   const addMeta = () => {
     if (!metaForm.nome || !metaForm.alvo) return;
@@ -349,6 +425,166 @@ export default function App() {
   };
   const removeMeta = (id) => setMetas(prev => prev.filter(m => m.id !== id));
   const totalOrcamento = Object.values(orcamento).reduce((s, v) => s + v, 0);
+
+  const handleCreateAccount = async (account) => {
+    try {
+      const saved = await createAccount(account);
+      setAccounts(prev => [...prev, saved]);
+      setSaveSuccess("Conta salva com sucesso!");
+      setTimeout(() => setSaveSuccess(""), 2500);
+    } catch (error) {
+      console.error(error);
+      setDataError("Não consegui salvar essa conta.");
+    }
+  };
+
+  const handleDeleteAccount = async (id) => {
+    try {
+      await deleteAccount(id);
+      setAccounts(prev => prev.filter(a => a.id !== id));
+    } catch (error) {
+      console.error(error);
+      setDataError("Não consegui remover essa conta.");
+    }
+  };
+
+  const handleCreateGoal = async (goal) => {
+    try {
+      const saved = await createSavingsGoal(goal);
+      setSavingsGoals(prev => [...prev, saved]);
+    } catch (error) {
+      console.error(error);
+      setDataError("Não consegui criar essa reserva.");
+    }
+  };
+
+  const handleUpdateGoal = async (id, patch) => {
+    try {
+      const saved = await updateSavingsGoal(id, patch);
+      setSavingsGoals(prev => prev.map(g => g.id === id ? saved : g));
+    } catch (error) {
+      console.error(error);
+      setDataError("Não consegui atualizar essa reserva.");
+    }
+  };
+
+  const handleDeleteGoal = async (id) => {
+    try {
+      await deleteSavingsGoal(id);
+      setSavingsGoals(prev => prev.filter(g => g.id !== id));
+    } catch (error) {
+      console.error(error);
+      setDataError("Não consegui remover essa reserva.");
+    }
+  };
+
+  const handleContributeGoal = async (id, amount) => {
+    const value = Number(amount) || 0;
+    if (value <= 0) return;
+
+    const goal = savingsGoals.find(g => g.id === id);
+    if (!goal) return;
+
+    try {
+      const [savedGoal, savedTransactions] = await Promise.all([
+        updateSavingsGoal(id, { current: goal.current + value }),
+        createTransactions([{
+          tipo: "economia",
+          categoria: "Reserva",
+          descricao: "Aporte - " + goal.name,
+          valor: value,
+          data: new Date().toISOString().split("T")[0],
+          recorrente: false,
+        }]),
+      ]);
+
+      setSavingsGoals(prev => prev.map(g => g.id === id ? savedGoal : g));
+      setTransactions(prev => [...prev, ...savedTransactions]);
+      setSaveSuccess("Aporte registrado: saiu do caixa e entrou no patrimônio.");
+      setTimeout(() => setSaveSuccess(""), 3000);
+    } catch (error) {
+      console.error(error);
+      setDataError("Não consegui registrar esse aporte.");
+    }
+  };
+
+  const handleCreateCard = async (card) => {
+    try {
+      const saved = await createCard(card);
+      setCards(prev => [...prev, saved]);
+    } catch (error) {
+      console.error(error);
+      setDataError("Não consegui salvar esse cartão.");
+    }
+  };
+
+  const handleDeleteCard = async (id) => {
+    try {
+      await deleteCard(id);
+      setCards(prev => prev.filter(card => card.id !== id));
+      setCardPurchases(prev => prev.filter(p => p.cardId !== id));
+    } catch (error) {
+      console.error(error);
+      setDataError("Não consegui remover esse cartão.");
+    }
+  };
+
+  const handleCreateCardPurchase = async (purchase) => {
+    try {
+      const saved = await createCardPurchase(purchase);
+      setCardPurchases(prev => [...prev, saved]);
+      setSaveSuccess("Compra adicionada à projeção do cartão!");
+      setTimeout(() => setSaveSuccess(""), 2500);
+    } catch (error) {
+      console.error(error);
+      setDataError("Não consegui registrar essa compra.");
+    }
+  };
+
+  const handleDeleteCardPurchase = async (id) => {
+    try {
+      await deleteCardPurchase(id);
+      setCardPurchases(prev => prev.filter(p => p.id !== id));
+    } catch (error) {
+      console.error(error);
+      setDataError("Não consegui remover essa compra.");
+    }
+  };
+
+  const cardProjectionTransactions = useMemo(
+    () => buildCardProjectionTransactions(cards, cardPurchases),
+    [cards, cardPurchases]
+  );
+
+  const availableAccountBalance = useMemo(
+    () => accounts.filter(account => account.includeInAvailable).reduce((sum, account) => sum + (Number(account.balance) || 0), 0),
+    [accounts]
+  );
+
+  const nextIncome = useMemo(() => {
+    const today = parseLocalDate(todayLocalIso());
+    return transactions
+      .filter(t => t.tipo === "receita" && parseLocalDate(t.data) >= today)
+      .slice()
+      .sort((a,b) => parseLocalDate(a.data) - parseLocalDate(b.data))[0] || null;
+  }, [transactions]);
+
+  const projection = useMemo(() => {
+    const start = parseLocalDate(todayLocalIso());
+    const end = parseLocalDate(start);
+    end.setMonth(end.getMonth() + 6);
+
+    const availableBalance = accounts
+      .filter(account => account.includeInAvailable)
+      .reduce((sum, account) => sum + (Number(account.balance) || 0), 0);
+
+    return buildProjection({
+      transactions: [...transactions, ...cardProjectionTransactions],
+      initialBalance: availableBalance,
+      startDate: toLocalIso(start),
+      endDate: toLocalIso(end),
+    });
+  }, [transactions, accounts, cardProjectionTransactions]);
 
   return (
     <div style={{ fontFamily:"'DM Sans',sans-serif", background:"#0f0f14", minHeight:"100vh", color:"#f1f5f9", maxWidth:430, margin:"0 auto", position:"relative", paddingBottom:80 }}>
@@ -367,9 +603,17 @@ export default function App() {
         .bar-bg{background:#1e1e2e;border-radius:8px;overflow:hidden;height:8px}
         .fade-in{animation:fadeIn 0.3s ease}
         @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-        .overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:50;display:flex;align-items:flex-end;max-width:430px;margin:0 auto;left:50%;transform:translateX(-50%)}
-        .sheet{background:#16161f;border-radius:20px 20px 0 0;padding:24px;width:100%;max-height:90vh;overflow-y:auto}
-        .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#059669;color:#fff;padding:12px 20px;border-radius:12px;font-weight:600;font-size:14px;z-index:100;animation:fadeIn 0.3s ease;white-space:nowrap;box-shadow:0 8px 24px rgba(0,0,0,0.4)}
+        .overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:50;display:flex;align-items:flex-end;justify-content:center;padding:0;width:100vw;height:100dvh;overflow:hidden}
+        .sheet{background:#16161f;border-radius:20px 20px 0 0;padding:24px;width:min(100%,430px);max-height:92dvh;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;box-shadow:0 -14px 40px rgba(0,0,0,.35)}
+        .sheet input,.sheet select,.sheet button{max-width:100%}
+        .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#059669;color:#fff;padding:12px 20px;border-radius:12px;font-weight:600;font-size:14px;z-index:100;animation:fadeIn 0.3s ease;white-space:normal;width:max-content;max-width:calc(100vw - 32px);text-align:center;box-shadow:0 8px 24px rgba(0,0,0,0.4)}
+        @media (min-width:700px){
+          .overlay{align-items:center;padding:24px}
+          .sheet{width:min(520px,calc(100vw - 48px));max-height:calc(100dvh - 48px);border-radius:20px;padding:26px}
+        }
+        @media (max-width:420px){
+          .sheet{padding:20px 16px;max-height:94dvh}
+        }
         .toggle-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #1e1e2e}
         .toggle{width:42px;height:24px;border-radius:12px;border:none;cursor:pointer;position:relative;transition:background 0.2s;flex-shrink:0}
         .toggle-knob{position:absolute;top:3px;width:18px;height:18px;border-radius:9px;background:#fff;transition:left 0.2s}
@@ -377,6 +621,17 @@ export default function App() {
       `}</style>
 
       {importSuccess > 0 && <div className="toast">✅ {importSuccess} transação(ões) importada(s)!</div>}
+      {saveSuccess && <div className="toast">✅ {saveSuccess}</div>}
+      {dataError && (
+        <div style={{ margin:"12px 16px", padding:"10px 12px", background:"rgba(248,113,113,.12)", color:"#fca5a5", border:"1px solid rgba(248,113,113,.25)", borderRadius:12, fontSize:12 }}>
+          {dataError}
+        </div>
+      )}
+      {dataLoading && (
+        <div style={{ margin:"12px 16px", padding:"10px 12px", background:"#1a1a24", color:"#8b8b9d", borderRadius:12, fontSize:12 }}>
+          Sincronizando com o Neon...
+        </div>
+      )}
 
       {/* Header */}
       <div style={{ padding:"24px 20px 12px", background:"linear-gradient(180deg,#13131d 0%,transparent 100%)", position:"sticky", top:0, zIndex:10 }}>
@@ -384,14 +639,20 @@ export default function App() {
           <div>
             <p style={{ fontSize:12, color:"#6b7280", fontWeight:500 }}>Minhas Finanças</p>
             <h1 style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800, letterSpacing:-0.5 }}>
-              {tab==="dashboard"?"Resumo":tab==="transacoes"?"Transações":tab==="orcamento"?"Orçamento":"Metas"}
+              {tab==="dashboard"?"Resumo":tab==="horizonte"?"Horizonte":tab==="transacoes"?"Transações":tab==="planejar"?"Planejar":"Metas"}
             </h1>
           </div>
           <div style={{ display:"flex", gap:8 }}>
+            <button
+              className="btn"
+              onClick={onSignOut}
+              title={user?.email || "Sair"}
+              style={{ background:"#1a1a24", color:"#a5b4fc", width:38, height:38, fontSize:16, display:"flex", alignItems:"center", justifyContent:"center" }}
+            >↪</button>
             {tab==="transacoes" && (<>
               <button className="btn" onClick={()=>setShowImport(true)}
                 style={{ background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.3)", color:"#a5b4fc", width:38, height:38, fontSize:18, display:"flex", alignItems:"center", justifyContent:"center" }}>📎</button>
-              <button className="btn" onClick={()=>{setForm(emptyForm);setShowForm(true)}}
+              <button className="btn" onClick={()=>{setForm(emptyForm);setFormError("");setShowForm(true)}}
                 style={{ background:"#6366f1", color:"#fff", width:38, height:38, fontSize:22, display:"flex", alignItems:"center", justifyContent:"center" }}>+</button>
             </>)}
             {tab==="metas" && (
@@ -400,7 +661,7 @@ export default function App() {
             )}
           </div>
         </div>
-        {(tab==="dashboard"||tab==="transacoes") && (
+        {(tab==="dashboard"||tab==="transacoes"||tab==="horizonte") && (
           <div style={{ display:"flex", gap:8, marginTop:12, overflowX:"auto", paddingBottom:4 }}>
             {MONTHS.map((m,i) => (
               <button key={i} className="btn" onClick={()=>setFiltroMes(i)}
@@ -417,26 +678,36 @@ export default function App() {
         {/* ── DASHBOARD ── */}
         {tab==="dashboard" && (<>
 
-          {/* Card saldo real / limite diário */}
+          {/* Visão principal baseada nas contas e no Horizonte */}
           <div style={{ background:"#1a1a24", borderRadius:20, padding:20, marginBottom:12 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", gap:16, alignItems:"flex-start" }}>
               <div>
-                <p style={{ fontSize:11, color:"#6b7280" }}>Saldo real disponível</p>
-                <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:26, fontWeight:800, color: saldoReal>=0?"#f1f5f9":"#f87171" }}>{fmt(saldoReal)}</h2>
+                <p style={{ fontSize:11, color:"#6b7280" }}>Saldo disponível nas contas</p>
+                <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:26, fontWeight:800, color:availableAccountBalance>=0?"#f1f5f9":"#f87171" }}>
+                  {fmt(availableAccountBalance)}
+                </h2>
               </div>
               <div style={{ textAlign:"right" }}>
-                <p style={{ fontSize:11, color:"#6b7280" }}>Limite diário</p>
-                <p style={{ fontSize:18, fontWeight:700, color: limiteDiario>=0?"#4ade80":"#f87171" }}>{fmt(Math.max(limiteDiario,0))}</p>
+                <p style={{ fontSize:11, color:"#6b7280" }}>Menor saldo futuro</p>
+                <p style={{ fontSize:18, fontWeight:700, color:projection.lowestBalance<0?"#f87171":projection.lowestBalance<500?"#fbbf24":"#4ade80" }}>
+                  {fmt(projection.lowestBalance)}
+                </p>
               </div>
             </div>
-            {estesMesAno && (
-              <div style={{ marginTop:12, display:"flex", gap:12 }}>
-                {receitasFuturas > 0 && <div style={{ fontSize:12, color:"#6b7280" }}>Entradas futuras: <strong style={{ color:"#4ade80" }}>+{fmt(receitasFuturas)}</strong></div>}
-                {despesasFuturas > 0 && <div style={{ fontSize:12, color:"#6b7280" }}>Saídas futuras: <strong style={{ color:"#f87171" }}>-{fmt(despesasFuturas)}</strong></div>}
-              </div>
-            )}
-            {estesMesAno && diasRestantes > 0 && (
-              <p style={{ fontSize:12, color:"#6b7280", marginTop:6 }}>Faltam <strong style={{ color:"#f1f5f9" }}>{diasRestantes} dias</strong> no mês</p>
+            <div style={{ marginTop:12, display:"flex", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
+              <p style={{ fontSize:12, color:"#6b7280" }}>
+                Pior ponto: <strong style={{ color:"#f1f5f9" }}>{formatDateBr(projection.lowestBalanceDate)}</strong>
+              </p>
+              {nextIncome && (
+                <p style={{ fontSize:12, color:"#6b7280" }}>
+                  Próxima entrada: <strong style={{ color:"#4ade80" }}>+{fmt(nextIncome.valor)}</strong> em {formatDateBr(nextIncome.data)}
+                </p>
+              )}
+            </div>
+            {accounts.length===0 && (
+              <button className="btn" onClick={()=>setTab("planejar")} style={{ marginTop:12, width:"100%", padding:10, background:"#242438", color:"#a5b4fc" }}>
+                Cadastre uma conta para o Horizonte começar do seu saldo real
+              </button>
             )}
           </div>
 
@@ -451,7 +722,7 @@ export default function App() {
             <span style={{ fontSize:22 }}>📎</span>
             <div style={{ textAlign:"left" }}>
               <p style={{ fontWeight:700 }}>Importar extrato ou boleto</p>
-              <p style={{ fontSize:11, color:"#6b7280", fontWeight:400 }}>PDF ou foto — IA reconhece Burgeria automaticamente</p>
+              <p style={{ fontSize:11, color:"#6b7280", fontWeight:400 }}>PDF ou foto — processamento protegido no servidor</p>
             </div>
             <span style={{ marginLeft:"auto" }}>→</span>
           </button>
@@ -506,19 +777,24 @@ export default function App() {
           </div>
 
           <div className="card">
-            <p style={{ fontWeight:600, fontSize:14, marginBottom:12 }}>Metas</p>
-            {metas.slice(0,3).map(m => {
-              const pct = Math.min((m.atual/m.alvo)*100,100);
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+              <p style={{ fontWeight:600, fontSize:14 }}>Patrimônio e reservas</p>
+              <button className="btn" onClick={()=>setTab("planejar")} style={{ background:"none", color:"#a5b4fc", fontSize:11 }}>ver tudo</button>
+            </div>
+            {savingsGoals.length===0 ? (
+              <p style={{ color:"#4b5563", fontSize:13, textAlign:"center", padding:"12px 0" }}>Nenhuma reserva criada ainda</p>
+            ) : savingsGoals.slice(0,3).map(g => {
+              const pct = g.target > 0 ? Math.min((g.current/g.target)*100,100) : 0;
               return (
-                <div key={m.id} style={{ marginBottom:12 }}>
+                <div key={g.id} style={{ marginBottom:12 }}>
                   <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
-                    <span style={{ fontSize:13 }}>{m.nome}</span>
+                    <span style={{ fontSize:13 }}>{g.name}</span>
                     <span style={{ fontSize:12, color:"#6b7280" }}>{pct.toFixed(0)}%</span>
                   </div>
-                  <div className="bar-bg"><div style={{ width:`${pct}%`, background:m.cor, height:"100%", borderRadius:8 }}/></div>
+                  <div className="bar-bg"><div style={{ width:`${pct}%`, background:"#4ade80", height:"100%", borderRadius:8 }}/></div>
                   <div style={{ display:"flex", justifyContent:"space-between", marginTop:3 }}>
-                    <span style={{ fontSize:11, color:"#4b5563" }}>{fmt(m.atual)}</span>
-                    <span style={{ fontSize:11, color:"#4b5563" }}>{fmt(m.alvo)}</span>
+                    <span style={{ fontSize:11, color:"#4b5563" }}>{fmt(g.current)}</span>
+                    <span style={{ fontSize:11, color:"#4b5563" }}>{fmt(g.target)}</span>
                   </div>
                 </div>
               );
@@ -545,6 +821,33 @@ export default function App() {
             ))}
           </div>
         </>)}
+
+        {/* ── HORIZONTE ── */}
+        {tab==="horizonte" && (
+          <HorizonPage projection={projection} />
+        )}
+
+        {/* ── PLANEJAR ── */}
+        {tab==="planejar" && (
+          <PlanningPage
+            accounts={accounts}
+            savingsGoals={savingsGoals}
+            cards={cards}
+            cardPurchases={cardPurchases}
+            baseTransactions={transactions}
+            cardProjectionTransactions={cardProjectionTransactions}
+            onCreateAccount={handleCreateAccount}
+            onDeleteAccount={handleDeleteAccount}
+            onCreateGoal={handleCreateGoal}
+            onUpdateGoal={handleUpdateGoal}
+            onContributeGoal={handleContributeGoal}
+            onDeleteGoal={handleDeleteGoal}
+            onCreateCard={handleCreateCard}
+            onDeleteCard={handleDeleteCard}
+            onCreateCardPurchase={handleCreateCardPurchase}
+            onDeleteCardPurchase={handleDeleteCardPurchase}
+          />
+        )}
 
         {/* ── TRANSAÇÕES ── */}
         {tab==="transacoes" && (<>
@@ -666,9 +969,9 @@ export default function App() {
       <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:430, background:"#13131d", borderTop:"1px solid #1e1e2e", display:"flex", padding:"8px 0 16px" }}>
         {[
           { id:"dashboard", icon:"📊", label:"Resumo" },
-          { id:"transacoes", icon:"💸", label:"Transações" },
-          { id:"orcamento", icon:"📋", label:"Orçamento" },
-          { id:"metas", icon:"🎯", label:"Metas" },
+          { id:"horizonte", icon:"🔭", label:"Horizonte" },
+          { id:"transacoes", icon:"💸", label:"Movimentos" },
+          { id:"planejar", icon:"🧭", label:"Planejar" },
         ].map(t => (
           <button key={t.id} onClick={()=>setTab(t.id)} className="btn"
             style={{ flex:1, background:"none", color:tab===t.id?"#a5b4fc":"#4b5563", fontSize:10, fontWeight:600, padding:"4px 0", display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
@@ -687,10 +990,10 @@ export default function App() {
 
             {/* Tipo */}
             <div style={{ display:"flex", gap:8, marginBottom:16 }}>
-              {["despesa","receita"].map(tipo => (
+              {["despesa","receita","diario"].map(tipo => (
                 <button key={tipo} className="btn" onClick={()=>setForm(f=>({...f,tipo,categoria:""}))}
-                  style={{ flex:1, padding:10, background:form.tipo===tipo?(tipo==="receita"?"rgba(74,222,128,0.2)":"rgba(248,113,113,0.2)"):"#1a1a24", color:form.tipo===tipo?(tipo==="receita"?"#4ade80":"#f87171"):"#6b7280", border:form.tipo===tipo?`1px solid ${tipo==="receita"?"#4ade80":"#f87171"}`:"1px solid transparent", fontSize:13 }}>
-                  {tipo==="receita"?"💰 Receita":"💸 Despesa"}
+                  style={{ flex:1, padding:10, background:form.tipo===tipo?(tipo==="receita"?"rgba(74,222,128,0.2)":tipo==="diario"?"rgba(165,180,252,0.16)":"rgba(248,113,113,0.2)"):"#1a1a24", color:form.tipo===tipo?(tipo==="receita"?"#4ade80":tipo==="diario"?"#a5b4fc":"#f87171"):"#6b7280", border:form.tipo===tipo?`1px solid ${tipo==="receita"?"#4ade80":tipo==="diario"?"#6366f1":"#f87171"}`:"1px solid transparent", fontSize:12 }}>
+                  {tipo==="receita"?"💰 Receita":tipo==="diario"?"🗓️ Diário":"💸 Despesa"}
                 </button>
               ))}
             </div>
@@ -699,10 +1002,15 @@ export default function App() {
             <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:16 }}>
               <select className="select" value={form.categoria} onChange={e=>setForm(f=>({...f,categoria:e.target.value}))}>
                 <option value="">Categoria</option>
-                {CATEGORIES[form.tipo].map(c=><option key={c} value={c}>{c==="Burgeria"?"🍔 Burgeria":c}</option>)}
+                {(CATEGORIES[form.tipo] || []).map(c=><option key={c} value={c}>{c==="Burgeria"?"🍔 Burgeria":c}</option>)}
               </select>
               <input className="input" placeholder="Descrição (opcional)" value={form.descricao} onChange={e=>setForm(f=>({...f,descricao:e.target.value}))}/>
-              <input className="input" type="number" placeholder="Valor (R$)" value={form.valor} onChange={e=>setForm(f=>({...f,valor:e.target.value}))}/>
+              <input className="input" type="number" placeholder={form.tipo==="diario"?"Orçamento mensal (R$)":"Valor (R$)"} value={form.valor} onChange={e=>setForm(f=>({...f,valor:e.target.value}))}/>
+              {form.tipo==="diario" && (
+                <p style={{ fontSize:11, color:"#6b7280", lineHeight:1.5 }}>
+                  Cadastre aqui os gastos variáveis do mês, como combustível, farmácia e padaria. O total será dividido pelos dias do mês no Horizonte.
+                </p>
+              )}
               <input className="input" type="date" value={form.data} onChange={e=>setForm(f=>({...f,data:e.target.value}))}/>
             </div>
 
@@ -734,7 +1042,7 @@ export default function App() {
             )}
 
             {/* Parcelado */}
-            {!form.recorrente && (
+            {!form.recorrente && form.tipo!=="diario" && (
               <>
                 <div className="toggle-row">
                   <div>
@@ -761,6 +1069,11 @@ export default function App() {
               </>
             )}
 
+            {formError && (
+              <p style={{ fontSize:12, color:"#fca5a5", background:"rgba(248,113,113,.10)", border:"1px solid rgba(248,113,113,.22)", padding:"10px 12px", borderRadius:10, marginTop:12, lineHeight:1.45 }}>
+                {formError}
+              </p>
+            )}
             <button className="btn" onClick={addTransaction}
               style={{ background:"#6366f1", color:"#fff", padding:14, fontSize:15, borderRadius:12, width:"100%", marginTop:16 }}>
               Adicionar
@@ -790,5 +1103,14 @@ export default function App() {
         </div>
       )}
     </div>
+  );
+}
+
+
+export default function App() {
+  return (
+    <AuthGate>
+      {({ user, signOut }) => <FinanceApp user={user} onSignOut={signOut} />}
+    </AuthGate>
   );
 }

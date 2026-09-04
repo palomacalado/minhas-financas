@@ -1,8 +1,11 @@
 import { useState, useMemo, useRef } from "react";
+import { buildProjection } from "./services/projectionEngine";
+import HorizonPage from "./pages/HorizonPage";
 
 const CATEGORIES = {
   receita: ["Salário", "Freelance", "Investimentos", "Burgeria", "Outros"],
   despesa: ["Moradia", "Alimentação", "Transporte", "Saúde", "Lazer", "Educação", "Burgeria", "Outros"],
+  diario: ["Combustível", "Farmácia", "Padaria", "Mercado", "Lazer", "Cuidados pessoais", "Outros"],
 };
 
 const COLORS = {
@@ -311,7 +314,7 @@ export default function App() {
     if (!form.categoria || !form.valor || !form.data) return;
     const valor = parseFloat(form.valor);
 
-    if (form.parcelado && parseInt(form.totalParcelas) > 1) {
+    if (form.tipo !== "diario" && form.parcelado && parseInt(form.totalParcelas) > 1) {
       const parcelas = Array.from({ length: parseInt(form.totalParcelas) }, (_, i) => {
         const d = new Date(form.data);
         d.setMonth(d.getMonth() + i);
@@ -350,6 +353,25 @@ export default function App() {
   const removeMeta = (id) => setMetas(prev => prev.filter(m => m.id !== id));
   const totalOrcamento = Object.values(orcamento).reduce((s, v) => s + v, 0);
 
+  const projection = useMemo(() => {
+    const start = new Date(filtroAno, filtroMes, 1);
+    const end = new Date(filtroAno, filtroMes + 6, 0);
+
+    const initialBalance = transactions
+      .filter(t => t.tipo !== "diario" && new Date(t.data) < start)
+      .reduce((sum, t) => {
+        const value = Number(t.valor) || 0;
+        return t.tipo === "receita" ? sum + value : sum - value;
+      }, 0);
+
+    return buildProjection({
+      transactions,
+      initialBalance,
+      startDate: start.toISOString().split("T")[0],
+      endDate: end.toISOString().split("T")[0],
+    });
+  }, [transactions, filtroMes, filtroAno]);
+
   return (
     <div style={{ fontFamily:"'DM Sans',sans-serif", background:"#0f0f14", minHeight:"100vh", color:"#f1f5f9", maxWidth:430, margin:"0 auto", position:"relative", paddingBottom:80 }}>
       <style>{`
@@ -384,7 +406,7 @@ export default function App() {
           <div>
             <p style={{ fontSize:12, color:"#6b7280", fontWeight:500 }}>Minhas Finanças</p>
             <h1 style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800, letterSpacing:-0.5 }}>
-              {tab==="dashboard"?"Resumo":tab==="transacoes"?"Transações":tab==="orcamento"?"Orçamento":"Metas"}
+              {tab==="dashboard"?"Resumo":tab==="horizonte"?"Horizonte":tab==="transacoes"?"Transações":tab==="orcamento"?"Orçamento":"Metas"}
             </h1>
           </div>
           <div style={{ display:"flex", gap:8 }}>
@@ -400,7 +422,7 @@ export default function App() {
             )}
           </div>
         </div>
-        {(tab==="dashboard"||tab==="transacoes") && (
+        {(tab==="dashboard"||tab==="transacoes"||tab==="horizonte") && (
           <div style={{ display:"flex", gap:8, marginTop:12, overflowX:"auto", paddingBottom:4 }}>
             {MONTHS.map((m,i) => (
               <button key={i} className="btn" onClick={()=>setFiltroMes(i)}
@@ -546,6 +568,11 @@ export default function App() {
           </div>
         </>)}
 
+        {/* ── HORIZONTE ── */}
+        {tab==="horizonte" && (
+          <HorizonPage projection={projection} />
+        )}
+
         {/* ── TRANSAÇÕES ── */}
         {tab==="transacoes" && (<>
           <div style={{ display:"flex", gap:8, marginBottom:12 }}>
@@ -666,7 +693,8 @@ export default function App() {
       <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:430, background:"#13131d", borderTop:"1px solid #1e1e2e", display:"flex", padding:"8px 0 16px" }}>
         {[
           { id:"dashboard", icon:"📊", label:"Resumo" },
-          { id:"transacoes", icon:"💸", label:"Transações" },
+          { id:"horizonte", icon:"🔭", label:"Horizonte" },
+          { id:"transacoes", icon:"💸", label:"Movimentos" },
           { id:"orcamento", icon:"📋", label:"Orçamento" },
           { id:"metas", icon:"🎯", label:"Metas" },
         ].map(t => (
@@ -687,10 +715,10 @@ export default function App() {
 
             {/* Tipo */}
             <div style={{ display:"flex", gap:8, marginBottom:16 }}>
-              {["despesa","receita"].map(tipo => (
+              {["despesa","receita","diario"].map(tipo => (
                 <button key={tipo} className="btn" onClick={()=>setForm(f=>({...f,tipo,categoria:""}))}
-                  style={{ flex:1, padding:10, background:form.tipo===tipo?(tipo==="receita"?"rgba(74,222,128,0.2)":"rgba(248,113,113,0.2)"):"#1a1a24", color:form.tipo===tipo?(tipo==="receita"?"#4ade80":"#f87171"):"#6b7280", border:form.tipo===tipo?`1px solid ${tipo==="receita"?"#4ade80":"#f87171"}`:"1px solid transparent", fontSize:13 }}>
-                  {tipo==="receita"?"💰 Receita":"💸 Despesa"}
+                  style={{ flex:1, padding:10, background:form.tipo===tipo?(tipo==="receita"?"rgba(74,222,128,0.2)":tipo==="diario"?"rgba(165,180,252,0.16)":"rgba(248,113,113,0.2)"):"#1a1a24", color:form.tipo===tipo?(tipo==="receita"?"#4ade80":tipo==="diario"?"#a5b4fc":"#f87171"):"#6b7280", border:form.tipo===tipo?`1px solid ${tipo==="receita"?"#4ade80":tipo==="diario"?"#6366f1":"#f87171"}`:"1px solid transparent", fontSize:12 }}>
+                  {tipo==="receita"?"💰 Receita":tipo==="diario"?"🗓️ Diário":"💸 Despesa"}
                 </button>
               ))}
             </div>
@@ -699,10 +727,15 @@ export default function App() {
             <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:16 }}>
               <select className="select" value={form.categoria} onChange={e=>setForm(f=>({...f,categoria:e.target.value}))}>
                 <option value="">Categoria</option>
-                {CATEGORIES[form.tipo].map(c=><option key={c} value={c}>{c==="Burgeria"?"🍔 Burgeria":c}</option>)}
+                {(CATEGORIES[form.tipo] || []).map(c=><option key={c} value={c}>{c==="Burgeria"?"🍔 Burgeria":c}</option>)}
               </select>
               <input className="input" placeholder="Descrição (opcional)" value={form.descricao} onChange={e=>setForm(f=>({...f,descricao:e.target.value}))}/>
-              <input className="input" type="number" placeholder="Valor (R$)" value={form.valor} onChange={e=>setForm(f=>({...f,valor:e.target.value}))}/>
+              <input className="input" type="number" placeholder={form.tipo==="diario"?"Orçamento mensal (R$)":"Valor (R$)"} value={form.valor} onChange={e=>setForm(f=>({...f,valor:e.target.value}))}/>
+              {form.tipo==="diario" && (
+                <p style={{ fontSize:11, color:"#6b7280", lineHeight:1.5 }}>
+                  Cadastre aqui os gastos variáveis do mês, como combustível, farmácia e padaria. O total será dividido pelos dias do mês no Horizonte.
+                </p>
+              )}
               <input className="input" type="date" value={form.data} onChange={e=>setForm(f=>({...f,data:e.target.value}))}/>
             </div>
 
@@ -734,7 +767,7 @@ export default function App() {
             )}
 
             {/* Parcelado */}
-            {!form.recorrente && (
+            {!form.recorrente && form.tipo!=="diario" && (
               <>
                 <div className="toggle-row">
                   <div>

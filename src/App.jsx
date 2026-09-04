@@ -220,6 +220,8 @@ function FinanceApp({ user, onSignOut }) {
   const [importSuccess, setImportSuccess] = useState(0);
   const [dataLoading, setDataLoading] = useState(true);
   const [dataError, setDataError] = useState("");
+  const [formError, setFormError] = useState("");
+  const [saveSuccess, setSaveSuccess] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -284,7 +286,20 @@ function FinanceApp({ user, onSignOut }) {
   }, [transacoesMes]);
 
   const addTransaction = async () => {
-    if (!form.categoria || !form.valor || !form.data) return;
+    setFormError("");
+    if (!form.categoria) {
+      setFormError("Selecione uma categoria para continuar.");
+      return;
+    }
+    if (!form.valor || Number(form.valor) <= 0) {
+      setFormError("Informe um valor maior que zero.");
+      return;
+    }
+    if (!form.data) {
+      setFormError("Escolha a data.");
+      return;
+    }
+
     const valor = parseFloat(form.valor);
     setDataError("");
 
@@ -312,7 +327,10 @@ function FinanceApp({ user, onSignOut }) {
       const saved = await createTransactions(pending);
       setTransactions(prev => [...prev, ...saved]);
       setForm(emptyForm);
+      setFormError("");
       setShowForm(false);
+      setSaveSuccess(form.tipo === "diario" ? "Diário salvo com sucesso!" : "Movimentação salva com sucesso!");
+      setTimeout(() => setSaveSuccess(""), 3000);
     } catch (error) {
       console.error("Erro ao salvar movimentação", error);
       setDataError("Não consegui salvar essa movimentação. Tente novamente.");
@@ -405,6 +423,7 @@ function FinanceApp({ user, onSignOut }) {
       `}</style>
 
       {importSuccess > 0 && <div className="toast">✅ {importSuccess} transação(ões) importada(s)!</div>}
+      {saveSuccess && <div className="toast">✅ {saveSuccess}</div>}
       {dataError && (
         <div style={{ margin:"12px 16px", padding:"10px 12px", background:"rgba(248,113,113,.12)", color:"#fca5a5", border:"1px solid rgba(248,113,113,.25)", borderRadius:12, fontSize:12 }}>
           {dataError}
@@ -435,7 +454,7 @@ function FinanceApp({ user, onSignOut }) {
             {tab==="transacoes" && (<>
               <button className="btn" onClick={()=>setShowImport(true)}
                 style={{ background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.3)", color:"#a5b4fc", width:38, height:38, fontSize:18, display:"flex", alignItems:"center", justifyContent:"center" }}>📎</button>
-              <button className="btn" onClick={()=>{setForm(emptyForm);setShowForm(true)}}
+              <button className="btn" onClick={()=>{setForm(emptyForm);setFormError("");setShowForm(true)}}
                 style={{ background:"#6366f1", color:"#fff", width:38, height:38, fontSize:22, display:"flex", alignItems:"center", justifyContent:"center" }}>+</button>
             </>)}
             {tab==="metas" && (
@@ -816,6 +835,11 @@ function FinanceApp({ user, onSignOut }) {
               </>
             )}
 
+            {formError && (
+              <p style={{ fontSize:12, color:"#fca5a5", background:"rgba(248,113,113,.10)", border:"1px solid rgba(248,113,113,.22)", padding:"10px 12px", borderRadius:10, marginTop:12, lineHeight:1.45 }}>
+                {formError}
+              </p>
+            )}
             <button className="btn" onClick={addTransaction}
               style={{ background:"#6366f1", color:"#fff", padding:14, fontSize:15, borderRadius:12, width:"100%", marginTop:16 }}>
               Adicionar

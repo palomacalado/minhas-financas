@@ -453,6 +453,36 @@ function FinanceApp({ user, onSignOut }) {
     }
   };
 
+  const handleContributeGoal = async (id, amount) => {
+    const value = Number(amount) || 0;
+    if (value <= 0) return;
+
+    const goal = savingsGoals.find(g => g.id === id);
+    if (!goal) return;
+
+    try {
+      const [savedGoal, savedTransactions] = await Promise.all([
+        updateSavingsGoal(id, { current: goal.current + value }),
+        createTransactions([{
+          tipo: "economia",
+          categoria: "Reserva",
+          descricao: "Aporte - " + goal.name,
+          valor: value,
+          data: new Date().toISOString().split("T")[0],
+          recorrente: false,
+        }]),
+      ]);
+
+      setSavingsGoals(prev => prev.map(g => g.id === id ? savedGoal : g));
+      setTransactions(prev => [...prev, ...savedTransactions]);
+      setSaveSuccess("Aporte registrado: saiu do caixa e entrou no patrimônio.");
+      setTimeout(() => setSaveSuccess(""), 3000);
+    } catch (error) {
+      console.error(error);
+      setDataError("Não consegui registrar esse aporte.");
+    }
+  };
+
   const handleCreateCard = async (card) => {
     try {
       const saved = await createCard(card);
@@ -758,6 +788,7 @@ function FinanceApp({ user, onSignOut }) {
             onDeleteAccount={handleDeleteAccount}
             onCreateGoal={handleCreateGoal}
             onUpdateGoal={handleUpdateGoal}
+            onContributeGoal={handleContributeGoal}
             onDeleteGoal={handleDeleteGoal}
             onCreateCard={handleCreateCard}
             onDeleteCard={handleDeleteCard}

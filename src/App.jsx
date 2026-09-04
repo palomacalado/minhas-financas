@@ -11,6 +11,7 @@ import {
   listCardPurchases, createCardPurchase, deleteCardPurchase,
   buildCardProjectionTransactions,
 } from "./services/planningRepository";
+import { parseLocalDate, todayLocalIso, toLocalIso } from "./utils/dateUtils";
 
 const CATEGORIES = {
   receita: ["Salário", "Freelance", "Investimentos", "Burgeria", "Outros"],
@@ -26,13 +27,13 @@ const COLORS = {
 };
 
 const MONTHS = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-const fmt = (v) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const fmt = (v) => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 // Gera recorrências SEM duplicar transações que já existem naquele mês
 function gerarRecorrencias(transactions, mes, ano) {
   const novas = [];
   const base = transactions.filter(t => {
-    const d = new Date(t.data);
+    const d = parseLocalDate(t.data);
     return d.getMonth() === mes && d.getFullYear() === ano;
   });
   const idsBase = new Set(base.map(t => String(t.id).split("-")[0]));
@@ -43,8 +44,8 @@ function gerarRecorrencias(transactions, mes, ano) {
     // Se já existe uma transação original desse id neste mês, não duplica
     if (idsBase.has(idBase)) return;
 
-    const dataOriginal = new Date(t.data);
-    const fim = t.fimRecorrencia ? new Date(t.fimRecorrencia) : null;
+    const dataOriginal = parseLocalDate(t.data);
+    const fim = t.fimRecorrencia ? parseLocalDate(t.fimRecorrencia) : null;
     const diaOriginal = dataOriginal.getDate();
     const dataAtual = new Date(ano, mes, Math.min(diaOriginal, new Date(ano, mes + 1, 0).getDate()));
 
@@ -71,7 +72,7 @@ const initialOrcamento = {
 
 const emptyForm = {
   tipo: "despesa", categoria: "", descricao: "", valor: "",
-  data: new Date().toISOString().split("T")[0],
+  data: todayLocalIso(),
   recorrente: false, tipoRecorrencia: "mensal", fimRecorrencia: "",
   parcelado: false, totalParcelas: 2,
 };
@@ -222,8 +223,8 @@ function FinanceApp({ user, onSignOut }) {
   const [showMetaForm, setShowMetaForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [metaForm, setMetaForm] = useState({ nome:"", alvo:"", atual:"", cor:"#6366f1" });
-  const [filtroMes, setFiltroMes] = useState(3);
-  const [filtroAno, setFiltroAno] = useState(2026);
+  const [filtroMes, setFiltroMes] = useState(() => new Date().getMonth());
+  const [filtroAno, setFiltroAno] = useState(() => new Date().getFullYear());
   const [aporteMeta, setAporteMeta] = useState({});
   const [importSuccess, setImportSuccess] = useState(0);
   const [dataLoading, setDataLoading] = useState(true);
@@ -267,7 +268,7 @@ function FinanceApp({ user, onSignOut }) {
 
   const transacoesMes = useMemo(() => {
     const base = transactions.filter(t => {
-      const d = new Date(t.data);
+      const d = parseLocalDate(t.data);
       return d.getMonth() === filtroMes && d.getFullYear() === filtroAno;
     });
     const recorrentes = gerarRecorrencias(transactions, filtroMes, filtroAno);
@@ -282,10 +283,10 @@ function FinanceApp({ user, onSignOut }) {
   const hoje = new Date();
   const estesMesAno = filtroMes === hoje.getMonth() && filtroAno === hoje.getFullYear();
   const receitasFuturas = estesMesAno
-    ? transacoesMes.filter(t => t.tipo === "receita" && new Date(t.data) > hoje).reduce((s, t) => s + t.valor, 0)
+    ? transacoesMes.filter(t => t.tipo === "receita" && parseLocalDate(t.data) > hoje).reduce((s, t) => s + t.valor, 0)
     : 0;
   const despesasFuturas = estesMesAno
-    ? transacoesMes.filter(t => t.tipo === "despesa" && new Date(t.data) > hoje).reduce((s, t) => s + t.valor, 0)
+    ? transacoesMes.filter(t => t.tipo === "despesa" && parseLocalDate(t.data) > hoje).reduce((s, t) => s + t.valor, 0)
     : 0;
 
   // Saldo real = o que já entrou menos o que já saiu
@@ -331,7 +332,7 @@ function FinanceApp({ user, onSignOut }) {
       let pending;
       if (form.tipo !== "diario" && form.parcelado && parseInt(form.totalParcelas) > 1) {
         pending = Array.from({ length: parseInt(form.totalParcelas) }, (_, i) => {
-          const d = new Date(form.data + "T12:00:00");
+          const d = parseLocalDate(form.data);
           d.setMonth(d.getMonth() + i);
           return {
             ...form,
@@ -369,7 +370,7 @@ function FinanceApp({ user, onSignOut }) {
       setTransactions(prev => [...prev, ...saved]);
       setImportSuccess(saved.length);
       setTimeout(() => setImportSuccess(0), 3500);
-      const d = new Date(saved[0].data + "T12:00:00");
+      const d = parseLocalDate(saved[0].data);
       setFiltroMes(d.getMonth()); setFiltroAno(d.getFullYear()); setTab("transacoes");
     } catch (error) {
       console.error("Erro ao importar movimentações", error);
@@ -378,10 +379,16 @@ function FinanceApp({ user, onSignOut }) {
   };
 
   const removeTransaction = async (id) => {
+    const transaction = transactions.find(t => t.id === id);
+    const label = transaction?.descricao || transaction?.categoria || "esta movimentação";
+    if (!window.confirm(`Remover "${label}"? Essa ação não pode ser desfeita.`)) return;
+
     setDataError("");
     try {
       await deleteTransaction(id);
       setTransactions(prev => prev.filter(t => t.id !== id));
+      setSaveSuccess("Movimentação removida.");
+      setTimeout(() => setSaveSuccess(""), 2200);
     } catch (error) {
       console.error("Erro ao remover movimentação", error);
       setDataError("Não consegui remover essa movimentação.");
@@ -532,9 +539,8 @@ function FinanceApp({ user, onSignOut }) {
   );
 
   const projection = useMemo(() => {
-    const start = new Date();
-    start.setHours(12, 0, 0, 0);
-    const end = new Date(start);
+    const start = parseLocalDate(todayLocalIso());
+    const end = parseLocalDate(start);
     end.setMonth(end.getMonth() + 6);
 
     const availableBalance = accounts
@@ -544,8 +550,8 @@ function FinanceApp({ user, onSignOut }) {
     return buildProjection({
       transactions: [...transactions, ...cardProjectionTransactions],
       initialBalance: availableBalance,
-      startDate: start.toISOString().split("T")[0],
-      endDate: end.toISOString().split("T")[0],
+      startDate: toLocalIso(start),
+      endDate: toLocalIso(end),
     });
   }, [transactions, accounts, cardProjectionTransactions]);
 

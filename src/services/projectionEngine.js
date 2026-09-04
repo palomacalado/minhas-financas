@@ -29,6 +29,12 @@ function expandTransaction(transaction, startDate, endDate) {
     : end;
 
   if (!transaction.recorrente) {
+    if (transaction.tipo === "diario") {
+      const txMonth = monthKey(original);
+      const startMonth = monthKey(start);
+      const endMonth = monthKey(end);
+      return txMonth >= startMonth && txMonth <= endMonth ? [transaction] : [];
+    }
     return isWithin(original, start, end) ? [transaction] : [];
   }
 

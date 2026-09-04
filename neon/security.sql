@@ -1,0 +1,23 @@
+-- Minhas Finanças V2 — security model
+-- Production uses Neon Auth + Neon Data API.
+-- Database credentials must NEVER be exposed to the React bundle.
+--
+-- The production database is configured with:
+--   * Managed Better Auth
+--   * Data API
+--   * Row Level Security (RLS)
+--   * auth.user_id() ownership checks
+--
+-- Example policy pattern:
+--
+-- alter table public.transactions enable row level security;
+--
+-- create policy transactions_own_rows
+--   on public.transactions for all to authenticated
+--   using (auth.user_id() = user_id)
+--   with check (auth.user_id() = user_id);
+--
+-- The same ownership policy is applied to accounts, savings_goals,
+-- cards, and card_purchases. app_users is restricted to the current user.
+--
+-- Do not add anonymous grants for financial data.

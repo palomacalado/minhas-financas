@@ -1,6 +1,8 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { buildProjection } from "./services/projectionEngine";
 import HorizonPage from "./pages/HorizonPage";
+import AuthGate from "./components/AuthGate";
+import { listTransactions, createTransactions, deleteTransaction } from "./services/financeRepository";
 
 const CATEGORIES = {
   receita: ["Salário", "Freelance", "Investimentos", "Burgeria", "Outros"],
@@ -251,7 +253,7 @@ Data padrão se não encontrar: ${new Date().toISOString().split("T")[0]}`;
 }
 
 // ── Main App ─────────────────────────────────────────────────────────────────
-export default function App() {
+function FinanceApp({ user, onSignOut }) {
   const [tab, setTab] = useState("dashboard");
   const [transactions, setTransactions] = useState(initialTransactions);
   const [metas, setMetas] = useState(initialMetas);
@@ -265,6 +267,26 @@ export default function App() {
   const [filtroAno, setFiltroAno] = useState(2026);
   const [aporteMeta, setAporteMeta] = useState({});
   const [importSuccess, setImportSuccess] = useState(0);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [dataError, setDataError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    setDataLoading(true);
+    listTransactions()
+      .then((remoteTransactions) => {
+        if (active) setTransactions(remoteTransactions);
+      })
+      .catch((error) => {
+        console.error("Erro ao carregar movimentações", error);
+        if (active) setDataError("Não consegui carregar suas movimentações do banco.");
+      })
+      .finally(() => {
+        if (active) setDataLoading(false);
+      });
+
+    return () => { active = false; };
+  }, []);
 
   const transacoesMes = useMemo(() => {
     const base = transactions.filter(t => {
@@ -310,35 +332,68 @@ export default function App() {
     return map;
   }, [transacoesMes]);
 
-  const addTransaction = () => {
+  const addTransaction = async () => {
     if (!form.categoria || !form.valor || !form.data) return;
     const valor = parseFloat(form.valor);
+    setDataError("");
 
-    if (form.tipo !== "diario" && form.parcelado && parseInt(form.totalParcelas) > 1) {
-      const parcelas = Array.from({ length: parseInt(form.totalParcelas) }, (_, i) => {
-        const d = new Date(form.data);
-        d.setMonth(d.getMonth() + i);
-        return { ...form, id: Date.now() + i, valor: parseFloat((valor / form.totalParcelas).toFixed(2)), descricao: `${form.descricao || form.categoria} (${i+1}/${form.totalParcelas})`, data: d.toISOString().split("T")[0], parcelado: true, recorrente: false };
-      });
-      setTransactions(prev => [...prev, ...parcelas]);
-    } else {
-      setTransactions(prev => [...prev, { ...form, id: Date.now(), valor }]);
+    try {
+      let pending;
+      if (form.tipo !== "diario" && form.parcelado && parseInt(form.totalParcelas) > 1) {
+        pending = Array.from({ length: parseInt(form.totalParcelas) }, (_, i) => {
+          const d = new Date(form.data + "T12:00:00");
+          d.setMonth(d.getMonth() + i);
+          return {
+            ...form,
+            valor: parseFloat((valor / form.totalParcelas).toFixed(2)),
+            descricao: `${form.descricao || form.categoria} (${i+1}/${form.totalParcelas})`,
+            data: d.toISOString().split("T")[0],
+            parcelado: true,
+            recorrente: false,
+            numeroParcela: i + 1,
+            totalParcelas: parseInt(form.totalParcelas),
+          };
+        });
+      } else {
+        pending = [{ ...form, valor }];
+      }
+
+      const saved = await createTransactions(pending);
+      setTransactions(prev => [...prev, ...saved]);
+      setForm(emptyForm);
+      setShowForm(false);
+    } catch (error) {
+      console.error("Erro ao salvar movimentação", error);
+      setDataError("Não consegui salvar essa movimentação. Tente novamente.");
     }
-    setForm(emptyForm);
-    setShowForm(false);
   };
 
-  const handleImportConfirm = (newTs) => {
-    setTransactions(prev => [...prev, ...newTs]);
-    setImportSuccess(newTs.length);
-    setTimeout(() => setImportSuccess(0), 3500);
-    if (newTs.length > 0) {
-      const d = new Date(newTs[0].data);
+  const handleImportConfirm = async (newTs) => {
+    if (!newTs.length) return;
+    setDataError("");
+    try {
+      const saved = await createTransactions(newTs);
+      setTransactions(prev => [...prev, ...saved]);
+      setImportSuccess(saved.length);
+      setTimeout(() => setImportSuccess(0), 3500);
+      const d = new Date(saved[0].data + "T12:00:00");
       setFiltroMes(d.getMonth()); setFiltroAno(d.getFullYear()); setTab("transacoes");
+    } catch (error) {
+      console.error("Erro ao importar movimentações", error);
+      setDataError("A importação foi lida, mas não consegui salvar no banco.");
     }
   };
 
-  const removeTransaction = (id) => setTransactions(prev => prev.filter(t => t.id !== id));
+  const removeTransaction = async (id) => {
+    setDataError("");
+    try {
+      await deleteTransaction(id);
+      setTransactions(prev => prev.filter(t => t.id !== id));
+    } catch (error) {
+      console.error("Erro ao remover movimentação", error);
+      setDataError("Não consegui remover essa movimentação.");
+    }
+  };
 
   const addMeta = () => {
     if (!metaForm.nome || !metaForm.alvo) return;
@@ -399,6 +454,16 @@ export default function App() {
       `}</style>
 
       {importSuccess > 0 && <div className="toast">✅ {importSuccess} transação(ões) importada(s)!</div>}
+      {dataError && (
+        <div style={{ margin:"12px 16px", padding:"10px 12px", background:"rgba(248,113,113,.12)", color:"#fca5a5", border:"1px solid rgba(248,113,113,.25)", borderRadius:12, fontSize:12 }}>
+          {dataError}
+        </div>
+      )}
+      {dataLoading && (
+        <div style={{ margin:"12px 16px", padding:"10px 12px", background:"#1a1a24", color:"#8b8b9d", borderRadius:12, fontSize:12 }}>
+          Sincronizando com o Neon...
+        </div>
+      )}
 
       {/* Header */}
       <div style={{ padding:"24px 20px 12px", background:"linear-gradient(180deg,#13131d 0%,transparent 100%)", position:"sticky", top:0, zIndex:10 }}>
@@ -410,6 +475,12 @@ export default function App() {
             </h1>
           </div>
           <div style={{ display:"flex", gap:8 }}>
+            <button
+              className="btn"
+              onClick={onSignOut}
+              title={user?.email || "Sair"}
+              style={{ background:"#1a1a24", color:"#a5b4fc", width:38, height:38, fontSize:16, display:"flex", alignItems:"center", justifyContent:"center" }}
+            >↪</button>
             {tab==="transacoes" && (<>
               <button className="btn" onClick={()=>setShowImport(true)}
                 style={{ background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.3)", color:"#a5b4fc", width:38, height:38, fontSize:18, display:"flex", alignItems:"center", justifyContent:"center" }}>📎</button>
@@ -823,5 +894,14 @@ export default function App() {
         </div>
       )}
     </div>
+  );
+}
+
+
+export default function App() {
+  return (
+    <AuthGate>
+      {({ user, signOut }) => <FinanceApp user={user} onSignOut={signOut} />}
+    </AuthGate>
   );
 }

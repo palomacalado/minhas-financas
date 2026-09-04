@@ -556,6 +556,19 @@ function FinanceApp({ user, onSignOut }) {
     [cards, cardPurchases]
   );
 
+  const availableAccountBalance = useMemo(
+    () => accounts.filter(account => account.includeInAvailable).reduce((sum, account) => sum + (Number(account.balance) || 0), 0),
+    [accounts]
+  );
+
+  const nextIncome = useMemo(() => {
+    const today = parseLocalDate(todayLocalIso());
+    return transactions
+      .filter(t => t.tipo === "receita" && parseLocalDate(t.data) >= today)
+      .slice()
+      .sort((a,b) => parseLocalDate(a.data) - parseLocalDate(b.data))[0] || null;
+  }, [transactions]);
+
   const projection = useMemo(() => {
     const start = parseLocalDate(todayLocalIso());
     const end = parseLocalDate(start);
@@ -665,26 +678,36 @@ function FinanceApp({ user, onSignOut }) {
         {/* ── DASHBOARD ── */}
         {tab==="dashboard" && (<>
 
-          {/* Card saldo real / limite diário */}
+          {/* Visão principal baseada nas contas e no Horizonte */}
           <div style={{ background:"#1a1a24", borderRadius:20, padding:20, marginBottom:12 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", gap:16, alignItems:"flex-start" }}>
               <div>
-                <p style={{ fontSize:11, color:"#6b7280" }}>Saldo real disponível</p>
-                <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:26, fontWeight:800, color: saldoReal>=0?"#f1f5f9":"#f87171" }}>{fmt(saldoReal)}</h2>
+                <p style={{ fontSize:11, color:"#6b7280" }}>Saldo disponível nas contas</p>
+                <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:26, fontWeight:800, color:availableAccountBalance>=0?"#f1f5f9":"#f87171" }}>
+                  {fmt(availableAccountBalance)}
+                </h2>
               </div>
               <div style={{ textAlign:"right" }}>
-                <p style={{ fontSize:11, color:"#6b7280" }}>Limite diário</p>
-                <p style={{ fontSize:18, fontWeight:700, color: limiteDiario>=0?"#4ade80":"#f87171" }}>{fmt(Math.max(limiteDiario,0))}</p>
+                <p style={{ fontSize:11, color:"#6b7280" }}>Menor saldo futuro</p>
+                <p style={{ fontSize:18, fontWeight:700, color:projection.lowestBalance<0?"#f87171":projection.lowestBalance<500?"#fbbf24":"#4ade80" }}>
+                  {fmt(projection.lowestBalance)}
+                </p>
               </div>
             </div>
-            {estesMesAno && (
-              <div style={{ marginTop:12, display:"flex", gap:12 }}>
-                {receitasFuturas > 0 && <div style={{ fontSize:12, color:"#6b7280" }}>Entradas futuras: <strong style={{ color:"#4ade80" }}>+{fmt(receitasFuturas)}</strong></div>}
-                {despesasFuturas > 0 && <div style={{ fontSize:12, color:"#6b7280" }}>Saídas futuras: <strong style={{ color:"#f87171" }}>-{fmt(despesasFuturas)}</strong></div>}
-              </div>
-            )}
-            {estesMesAno && diasRestantes > 0 && (
-              <p style={{ fontSize:12, color:"#6b7280", marginTop:6 }}>Faltam <strong style={{ color:"#f1f5f9" }}>{diasRestantes} dias</strong> no mês</p>
+            <div style={{ marginTop:12, display:"flex", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
+              <p style={{ fontSize:12, color:"#6b7280" }}>
+                Pior ponto: <strong style={{ color:"#f1f5f9" }}>{formatDateBr(projection.lowestBalanceDate)}</strong>
+              </p>
+              {nextIncome && (
+                <p style={{ fontSize:12, color:"#6b7280" }}>
+                  Próxima entrada: <strong style={{ color:"#4ade80" }}>+{fmt(nextIncome.valor)}</strong> em {formatDateBr(nextIncome.data)}
+                </p>
+              )}
+            </div>
+            {accounts.length===0 && (
+              <button className="btn" onClick={()=>setTab("planejar")} style={{ marginTop:12, width:"100%", padding:10, background:"#242438", color:"#a5b4fc" }}>
+                Cadastre uma conta para o Horizonte começar do seu saldo real
+              </button>
             )}
           </div>
 
@@ -699,7 +722,7 @@ function FinanceApp({ user, onSignOut }) {
             <span style={{ fontSize:22 }}>📎</span>
             <div style={{ textAlign:"left" }}>
               <p style={{ fontWeight:700 }}>Importar extrato ou boleto</p>
-              <p style={{ fontSize:11, color:"#6b7280", fontWeight:400 }}>PDF ou foto — IA reconhece Burgeria automaticamente</p>
+              <p style={{ fontSize:11, color:"#6b7280", fontWeight:400 }}>PDF ou foto — processamento protegido no servidor</p>
             </div>
             <span style={{ marginLeft:"auto" }}>→</span>
           </button>
@@ -754,19 +777,24 @@ function FinanceApp({ user, onSignOut }) {
           </div>
 
           <div className="card">
-            <p style={{ fontWeight:600, fontSize:14, marginBottom:12 }}>Metas</p>
-            {metas.slice(0,3).map(m => {
-              const pct = Math.min((m.atual/m.alvo)*100,100);
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+              <p style={{ fontWeight:600, fontSize:14 }}>Patrimônio e reservas</p>
+              <button className="btn" onClick={()=>setTab("planejar")} style={{ background:"none", color:"#a5b4fc", fontSize:11 }}>ver tudo</button>
+            </div>
+            {savingsGoals.length===0 ? (
+              <p style={{ color:"#4b5563", fontSize:13, textAlign:"center", padding:"12px 0" }}>Nenhuma reserva criada ainda</p>
+            ) : savingsGoals.slice(0,3).map(g => {
+              const pct = g.target > 0 ? Math.min((g.current/g.target)*100,100) : 0;
               return (
-                <div key={m.id} style={{ marginBottom:12 }}>
+                <div key={g.id} style={{ marginBottom:12 }}>
                   <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
-                    <span style={{ fontSize:13 }}>{m.nome}</span>
+                    <span style={{ fontSize:13 }}>{g.name}</span>
                     <span style={{ fontSize:12, color:"#6b7280" }}>{pct.toFixed(0)}%</span>
                   </div>
-                  <div className="bar-bg"><div style={{ width:`${pct}%`, background:m.cor, height:"100%", borderRadius:8 }}/></div>
+                  <div className="bar-bg"><div style={{ width:`${pct}%`, background:"#4ade80", height:"100%", borderRadius:8 }}/></div>
                   <div style={{ display:"flex", justifyContent:"space-between", marginTop:3 }}>
-                    <span style={{ fontSize:11, color:"#4b5563" }}>{fmt(m.atual)}</span>
-                    <span style={{ fontSize:11, color:"#4b5563" }}>{fmt(m.alvo)}</span>
+                    <span style={{ fontSize:11, color:"#4b5563" }}>{fmt(g.current)}</span>
+                    <span style={{ fontSize:11, color:"#4b5563" }}>{fmt(g.target)}</span>
                   </div>
                 </div>
               );

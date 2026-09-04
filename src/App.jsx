@@ -54,11 +54,7 @@ function gerarRecorrencias(transactions, mes, ano) {
 
 const initialTransactions = [];
 
-const initialMetas = [];[
-  { id: 1, nome: "Viagem",               alvo: 8000,  atual: 3200, cor: "#f59e0b" },
-  { id: 2, nome: "Reserva de Emergência",alvo: 15000, atual: 9500, cor: "#6366f1" },
-  { id: 3, nome: "Expansão Burgeria",    alvo: 20000, atual: 0,    cor: "#f97316" },
-];
+const initialMetas = [];
 
 const initialOrcamento = {
   Moradia: 2000, Alimentação: 800, Transporte: 400, Saúde: 300,

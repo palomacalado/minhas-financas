@@ -7,7 +7,7 @@ const todayIso = () => new Date().toISOString().split("T")[0];
 export default function PlanningPage(props) {
   const {
     accounts, savingsGoals, cards, cardPurchases, baseTransactions, cardProjectionTransactions,
-    onCreateAccount, onDeleteAccount, onCreateGoal, onUpdateGoal, onDeleteGoal,
+    onCreateAccount, onDeleteAccount, onCreateGoal, onUpdateGoal, onContributeGoal, onDeleteGoal,
     onCreateCard, onDeleteCard, onCreateCardPurchase, onDeleteCardPurchase,
   } = props;
 
@@ -89,7 +89,11 @@ export default function PlanningPage(props) {
         <div className="card">
           <p style={{ fontWeight:700, marginBottom:10 }}>Nova conta</p>
           <input className="input" placeholder="Nome: Itaú, Nubank..." value={accountForm.name} onChange={e=>setAccountForm(f=>({...f,name:e.target.value}))} style={{ marginBottom:8 }}/>
-          <select className="select" value={accountForm.kind} onChange={e=>setAccountForm(f=>({...f,kind:e.target.value}))} style={{ marginBottom:8 }}>
+          <select className="select" value={accountForm.kind} onChange={e=>setAccountForm(f=>({
+            ...f,
+            kind:e.target.value,
+            includeInAvailable:["va","vr","savings"].includes(e.target.value) ? false : f.includeInAvailable
+          }))} style={{ marginBottom:8 }}>
             <option value="checking">Conta corrente</option>
             <option value="cash">Dinheiro</option>
             <option value="va">VA</option>
@@ -125,8 +129,8 @@ export default function PlanningPage(props) {
               <p style={{ fontSize:12, color:"#8b8b9d", margin:"5px 0" }}>{fmt(g.current)} de {fmt(g.target)}</p>
               <div className="bar-bg"><div style={{ width:String(pct)+"%", height:"100%", background:"#4ade80" }}/></div>
               <div style={{ display:"flex", gap:8, marginTop:10 }}>
-                <button className="btn" onClick={()=>onUpdateGoal(g.id,{current:g.current+100})} style={{ flex:1,padding:8,background:"#1f2937",color:"#a5b4fc" }}>+ R$100</button>
-                <button className="btn" onClick={()=>onUpdateGoal(g.id,{current:g.current+500})} style={{ flex:1,padding:8,background:"#1f2937",color:"#a5b4fc" }}>+ R$500</button>
+                <button className="btn" onClick={()=>onContributeGoal(g.id,100)} style={{ flex:1,padding:8,background:"#1f2937",color:"#a5b4fc" }}>+ R$100</button>
+                <button className="btn" onClick={()=>onContributeGoal(g.id,500)} style={{ flex:1,padding:8,background:"#1f2937",color:"#a5b4fc" }}>+ R$500</button>
               </div>
             </div>
           );

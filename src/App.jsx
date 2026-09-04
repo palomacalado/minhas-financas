@@ -413,9 +413,17 @@ function FinanceApp({ user, onSignOut }) {
         .bar-bg{background:#1e1e2e;border-radius:8px;overflow:hidden;height:8px}
         .fade-in{animation:fadeIn 0.3s ease}
         @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-        .overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:50;display:flex;align-items:flex-end;max-width:430px;margin:0 auto;left:50%;transform:translateX(-50%)}
-        .sheet{background:#16161f;border-radius:20px 20px 0 0;padding:24px;width:100%;max-height:90vh;overflow-y:auto}
-        .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#059669;color:#fff;padding:12px 20px;border-radius:12px;font-weight:600;font-size:14px;z-index:100;animation:fadeIn 0.3s ease;white-space:nowrap;box-shadow:0 8px 24px rgba(0,0,0,0.4)}
+        .overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:50;display:flex;align-items:flex-end;justify-content:center;padding:0;width:100vw;height:100dvh;overflow:hidden}
+        .sheet{background:#16161f;border-radius:20px 20px 0 0;padding:24px;width:min(100%,430px);max-height:92dvh;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;box-shadow:0 -14px 40px rgba(0,0,0,.35)}
+        .sheet input,.sheet select,.sheet button{max-width:100%}
+        .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#059669;color:#fff;padding:12px 20px;border-radius:12px;font-weight:600;font-size:14px;z-index:100;animation:fadeIn 0.3s ease;white-space:normal;width:max-content;max-width:calc(100vw - 32px);text-align:center;box-shadow:0 8px 24px rgba(0,0,0,0.4)}
+        @media (min-width:700px){
+          .overlay{align-items:center;padding:24px}
+          .sheet{width:min(520px,calc(100vw - 48px));max-height:calc(100dvh - 48px);border-radius:20px;padding:26px}
+        }
+        @media (max-width:420px){
+          .sheet{padding:20px 16px;max-height:94dvh}
+        }
         .toggle-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #1e1e2e}
         .toggle{width:42px;height:24px;border-radius:12px;border:none;cursor:pointer;position:relative;transition:background 0.2s;flex-shrink:0}
         .toggle-knob{position:absolute;top:3px;width:18px;height:18px;border-radius:9px;background:#fff;transition:left 0.2s}

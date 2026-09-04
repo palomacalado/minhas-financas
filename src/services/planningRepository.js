@@ -149,6 +149,8 @@ export function buildCardProjectionTransactions(cards, purchases) {
         totalParcelas: installments,
         numeroParcela: i + 1,
         projection: true,
+        source: "card",
+        cardName: card.name,
       });
     }
   });

@@ -1,8 +1,16 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { buildProjection } from "./services/projectionEngine";
 import HorizonPage from "./pages/HorizonPage";
+import PlanningPage from "./pages/PlanningPage";
 import AuthGate from "./components/AuthGate";
 import { listTransactions, createTransactions, deleteTransaction } from "./services/financeRepository";
+import {
+  listAccounts, createAccount, deleteAccount,
+  listSavingsGoals, createSavingsGoal, updateSavingsGoal, deleteSavingsGoal,
+  listCards, createCard, deleteCard,
+  listCardPurchases, createCardPurchase, deleteCardPurchase,
+  buildCardProjectionTransactions,
+} from "./services/planningRepository";
 
 const CATEGORIES = {
   receita: ["Salário", "Freelance", "Investimentos", "Burgeria", "Outros"],
@@ -222,17 +230,33 @@ function FinanceApp({ user, onSignOut }) {
   const [dataError, setDataError] = useState("");
   const [formError, setFormError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState("");
+  const [accounts, setAccounts] = useState([]);
+  const [savingsGoals, setSavingsGoals] = useState([]);
+  const [cards, setCards] = useState([]);
+  const [cardPurchases, setCardPurchases] = useState([]);
 
   useEffect(() => {
     let active = true;
     setDataLoading(true);
-    listTransactions()
-      .then((remoteTransactions) => {
-        if (active) setTransactions(remoteTransactions);
+
+    Promise.all([
+      listTransactions(),
+      listAccounts(),
+      listSavingsGoals(),
+      listCards(),
+      listCardPurchases(),
+    ])
+      .then(([remoteTransactions, remoteAccounts, remoteGoals, remoteCards, remotePurchases]) => {
+        if (!active) return;
+        setTransactions(remoteTransactions);
+        setAccounts(remoteAccounts);
+        setSavingsGoals(remoteGoals);
+        setCards(remoteCards);
+        setCardPurchases(remotePurchases);
       })
       .catch((error) => {
-        console.error("Erro ao carregar movimentações", error);
-        if (active) setDataError("Não consegui carregar suas movimentações do banco.");
+        console.error("Erro ao carregar dados financeiros", error);
+        if (active) setDataError("Não consegui carregar todos os seus dados do banco.");
       })
       .finally(() => {
         if (active) setDataLoading(false);
@@ -377,24 +401,123 @@ function FinanceApp({ user, onSignOut }) {
   const removeMeta = (id) => setMetas(prev => prev.filter(m => m.id !== id));
   const totalOrcamento = Object.values(orcamento).reduce((s, v) => s + v, 0);
 
-  const projection = useMemo(() => {
-    const start = new Date(filtroAno, filtroMes, 1);
-    const end = new Date(filtroAno, filtroMes + 6, 0);
+  const handleCreateAccount = async (account) => {
+    try {
+      const saved = await createAccount(account);
+      setAccounts(prev => [...prev, saved]);
+      setSaveSuccess("Conta salva com sucesso!");
+      setTimeout(() => setSaveSuccess(""), 2500);
+    } catch (error) {
+      console.error(error);
+      setDataError("Não consegui salvar essa conta.");
+    }
+  };
 
-    const initialBalance = transactions
-      .filter(t => t.tipo !== "diario" && new Date(t.data) < start)
-      .reduce((sum, t) => {
-        const value = Number(t.valor) || 0;
-        return t.tipo === "receita" ? sum + value : sum - value;
-      }, 0);
+  const handleDeleteAccount = async (id) => {
+    try {
+      await deleteAccount(id);
+      setAccounts(prev => prev.filter(a => a.id !== id));
+    } catch (error) {
+      console.error(error);
+      setDataError("Não consegui remover essa conta.");
+    }
+  };
+
+  const handleCreateGoal = async (goal) => {
+    try {
+      const saved = await createSavingsGoal(goal);
+      setSavingsGoals(prev => [...prev, saved]);
+    } catch (error) {
+      console.error(error);
+      setDataError("Não consegui criar essa reserva.");
+    }
+  };
+
+  const handleUpdateGoal = async (id, patch) => {
+    try {
+      const saved = await updateSavingsGoal(id, patch);
+      setSavingsGoals(prev => prev.map(g => g.id === id ? saved : g));
+    } catch (error) {
+      console.error(error);
+      setDataError("Não consegui atualizar essa reserva.");
+    }
+  };
+
+  const handleDeleteGoal = async (id) => {
+    try {
+      await deleteSavingsGoal(id);
+      setSavingsGoals(prev => prev.filter(g => g.id !== id));
+    } catch (error) {
+      console.error(error);
+      setDataError("Não consegui remover essa reserva.");
+    }
+  };
+
+  const handleCreateCard = async (card) => {
+    try {
+      const saved = await createCard(card);
+      setCards(prev => [...prev, saved]);
+    } catch (error) {
+      console.error(error);
+      setDataError("Não consegui salvar esse cartão.");
+    }
+  };
+
+  const handleDeleteCard = async (id) => {
+    try {
+      await deleteCard(id);
+      setCards(prev => prev.filter(card => card.id !== id));
+      setCardPurchases(prev => prev.filter(p => p.cardId !== id));
+    } catch (error) {
+      console.error(error);
+      setDataError("Não consegui remover esse cartão.");
+    }
+  };
+
+  const handleCreateCardPurchase = async (purchase) => {
+    try {
+      const saved = await createCardPurchase(purchase);
+      setCardPurchases(prev => [...prev, saved]);
+      setSaveSuccess("Compra adicionada à projeção do cartão!");
+      setTimeout(() => setSaveSuccess(""), 2500);
+    } catch (error) {
+      console.error(error);
+      setDataError("Não consegui registrar essa compra.");
+    }
+  };
+
+  const handleDeleteCardPurchase = async (id) => {
+    try {
+      await deleteCardPurchase(id);
+      setCardPurchases(prev => prev.filter(p => p.id !== id));
+    } catch (error) {
+      console.error(error);
+      setDataError("Não consegui remover essa compra.");
+    }
+  };
+
+  const cardProjectionTransactions = useMemo(
+    () => buildCardProjectionTransactions(cards, cardPurchases),
+    [cards, cardPurchases]
+  );
+
+  const projection = useMemo(() => {
+    const start = new Date();
+    start.setHours(12, 0, 0, 0);
+    const end = new Date(start);
+    end.setMonth(end.getMonth() + 6);
+
+    const availableBalance = accounts
+      .filter(account => account.includeInAvailable)
+      .reduce((sum, account) => sum + (Number(account.balance) || 0), 0);
 
     return buildProjection({
-      transactions,
-      initialBalance,
+      transactions: [...transactions, ...cardProjectionTransactions],
+      initialBalance: availableBalance,
       startDate: start.toISOString().split("T")[0],
       endDate: end.toISOString().split("T")[0],
     });
-  }, [transactions, filtroMes, filtroAno]);
+  }, [transactions, accounts, cardProjectionTransactions]);
 
   return (
     <div style={{ fontFamily:"'DM Sans',sans-serif", background:"#0f0f14", minHeight:"100vh", color:"#f1f5f9", maxWidth:430, margin:"0 auto", position:"relative", paddingBottom:80 }}>
@@ -449,7 +572,7 @@ function FinanceApp({ user, onSignOut }) {
           <div>
             <p style={{ fontSize:12, color:"#6b7280", fontWeight:500 }}>Minhas Finanças</p>
             <h1 style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800, letterSpacing:-0.5 }}>
-              {tab==="dashboard"?"Resumo":tab==="horizonte"?"Horizonte":tab==="transacoes"?"Transações":tab==="orcamento"?"Orçamento":"Metas"}
+              {tab==="dashboard"?"Resumo":tab==="horizonte"?"Horizonte":tab==="transacoes"?"Transações":tab==="planejar"?"Planejar":"Metas"}
             </h1>
           </div>
           <div style={{ display:"flex", gap:8 }}>
@@ -622,6 +745,27 @@ function FinanceApp({ user, onSignOut }) {
           <HorizonPage projection={projection} />
         )}
 
+        {/* ── PLANEJAR ── */}
+        {tab==="planejar" && (
+          <PlanningPage
+            accounts={accounts}
+            savingsGoals={savingsGoals}
+            cards={cards}
+            cardPurchases={cardPurchases}
+            baseTransactions={transactions}
+            cardProjectionTransactions={cardProjectionTransactions}
+            onCreateAccount={handleCreateAccount}
+            onDeleteAccount={handleDeleteAccount}
+            onCreateGoal={handleCreateGoal}
+            onUpdateGoal={handleUpdateGoal}
+            onDeleteGoal={handleDeleteGoal}
+            onCreateCard={handleCreateCard}
+            onDeleteCard={handleDeleteCard}
+            onCreateCardPurchase={handleCreateCardPurchase}
+            onDeleteCardPurchase={handleDeleteCardPurchase}
+          />
+        )}
+
         {/* ── TRANSAÇÕES ── */}
         {tab==="transacoes" && (<>
           <div style={{ display:"flex", gap:8, marginBottom:12 }}>
@@ -744,7 +888,7 @@ function FinanceApp({ user, onSignOut }) {
           { id:"dashboard", icon:"📊", label:"Resumo" },
           { id:"horizonte", icon:"🔭", label:"Horizonte" },
           { id:"transacoes", icon:"💸", label:"Movimentos" },
-          { id:"orcamento", icon:"📋", label:"Orçamento" },
+          { id:"planejar", icon:"🧭", label:"Planejar" },
           { id:"metas", icon:"🎯", label:"Metas" },
         ].map(t => (
           <button key={t.id} onClick={()=>setTab(t.id)} className="btn"

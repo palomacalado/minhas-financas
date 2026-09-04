@@ -11,7 +11,7 @@ import {
   listCardPurchases, createCardPurchase, deleteCardPurchase,
   buildCardProjectionTransactions,
 } from "./services/planningRepository";
-import { parseLocalDate, todayLocalIso, toLocalIso } from "./utils/dateUtils";
+import { formatDateBr, parseLocalDate, todayLocalIso, toLocalIso } from "./utils/dateUtils";
 
 const CATEGORIES = {
   receita: ["Salário", "Freelance", "Investimentos", "Burgeria", "Outros"],

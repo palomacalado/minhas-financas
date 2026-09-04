@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { formatDateBr } from "../utils/dateUtils";
 
 const fmt = (v) => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const monthLabel = (key) => {
@@ -33,7 +34,7 @@ export default function HorizonPage({ projection }) {
           {fmt(projection.lowestBalance)}
         </h2>
         <p style={{ color: "#6b7280", fontSize: 12, marginTop: 4 }}>
-          Menor saldo projetado em {new Date(projection.lowestBalanceDate + "T12:00:00").toLocaleDateString("pt-BR")}
+          Menor saldo projetado em {formatDateBr(projection.lowestBalanceDate)}
         </p>
       </div>
 
@@ -80,6 +81,7 @@ export default function HorizonPage({ projection }) {
           </div>
           <p style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>
             O Diário é a soma dos gastos variáveis cadastrados para o mês, distribuída automaticamente entre os dias.
+            Parcelas de cartão aparecem no dia de vencimento da fatura.
           </p>
         </div>
       )}
@@ -97,13 +99,29 @@ export default function HorizonPage({ projection }) {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
                 <p style={{ fontSize: 12, fontWeight: 700 }}>
-                  {new Date(day.date + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" })}
+                  {formatDateBr(day.date, { weekday: "short", day: "2-digit", month: "2-digit" })}
                 </p>
                 <div style={{ display: "flex", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
                   {day.income > 0 && <span style={{ fontSize: 10, color: "#4ade80" }}>+ {fmt(day.income)}</span>}
                   {day.expense > 0 && <span style={{ fontSize: 10, color: "#f87171" }}>- {fmt(day.expense)}</span>}
                   {day.dailyBudget > 0 && <span style={{ fontSize: 10, color: "#a5b4fc" }}>diário {fmt(day.dailyBudget)}</span>}
                 </div>
+                {day.movements.length > 0 && (
+                  <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+                    {day.movements.map((movement) => (
+                      <div key={movement.id} style={{ display:"flex", justifyContent:"space-between", gap:10, fontSize:10, color:"#8b8b9d" }}>
+                        <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                          {movement.tipo === "cartao" ? "💳 " : movement.tipo === "economia" ? "🏦 " : ""}
+                          {movement.cardName ? movement.cardName + " · " : ""}
+                          {movement.descricao || movement.categoria}
+                        </span>
+                        <span style={{ flexShrink:0, color: movement.tipo==="receita" ? "#4ade80" : "#fca5a5" }}>
+                          {movement.tipo==="receita" ? "+" : "-"}{fmt(movement.valor)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               <div style={{ textAlign: "right" }}>
                 <p style={{ fontSize: 10, color: "#6b7280" }}>saldo</p>

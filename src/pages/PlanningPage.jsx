@@ -1,8 +1,17 @@
 import { useMemo, useState } from "react";
 import { buildProjection } from "../services/projectionEngine";
+import { formatDateBr, todayLocalIso } from "../utils/dateUtils";
 
 const fmt = (v) => Number(v || 0).toLocaleString("pt-BR", { style:"currency", currency:"BRL" });
-const todayIso = () => new Date().toISOString().split("T")[0];
+const ACCOUNT_KIND_LABELS = {
+  checking: "Conta corrente",
+  cash: "Dinheiro",
+  va: "Vale-alimentação",
+  vr: "Vale-refeição",
+  savings: "Reserva",
+};
+
+const confirmDelete = (message) => window.confirm(message);
 
 export default function PlanningPage(props) {
   const {
@@ -15,15 +24,16 @@ export default function PlanningPage(props) {
   const [accountForm, setAccountForm] = useState({ name:"", kind:"checking", balance:"", includeInAvailable:true });
   const [goalForm, setGoalForm] = useState({ name:"", target:"", current:"" });
   const [cardForm, setCardForm] = useState({ name:"", closingDay:"", dueDay:"", limit:"" });
-  const [purchaseForm, setPurchaseForm] = useState({ cardId:"", description:"", totalAmount:"", purchaseDate:todayIso(), installments:1, category:"Outros" });
-  const [sim, setSim] = useState({ amount:"", date:todayIso(), description:"Compra simulada" });
+  const [purchaseForm, setPurchaseForm] = useState({ cardId:"", description:"", totalAmount:"", purchaseDate:todayLocalIso(), installments:1, category:"Outros" });
+  const [sim, setSim] = useState({ amount:"", date:todayLocalIso(), description:"Compra simulada" });
+  const [customContribution, setCustomContribution] = useState({});
 
   const availableBalance = accounts.filter(a => a.includeInAvailable).reduce((s,a)=>s+a.balance,0);
   const assetsBalance = accounts.filter(a => !a.includeInAvailable || a.kind === "savings").reduce((s,a)=>s+a.balance,0)
     + savingsGoals.reduce((s,g)=>s+g.current,0);
 
   const simulation = useMemo(() => {
-    const start = todayIso();
+    const start = todayLocalIso();
     const endDate = new Date();
     endDate.setMonth(endDate.getMonth() + 6);
     const end = endDate.toISOString().split("T")[0];
@@ -59,7 +69,7 @@ export default function PlanningPage(props) {
 
   return (
     <div className="fade-in">
-      <div style={{ display:"flex", gap:6, marginBottom:12 }}>
+      <div style={{ display:"flex", gap:6, marginBottom:12, overflowX:"auto", paddingBottom:2 }}>
         {navButton("contas","Contas")}
         {navButton("patrimonio","Patrimônio")}
         {navButton("cartoes","Cartões")}
@@ -77,11 +87,11 @@ export default function PlanningPage(props) {
           <div className="card" key={a.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <div>
               <p style={{ fontWeight:700 }}>{a.name}</p>
-              <p style={{ fontSize:11, color:"#6b7280" }}>{a.kind} · {a.includeInAvailable ? "entra no saldo" : "separada do saldo"}</p>
+              <p style={{ fontSize:11, color:"#6b7280" }}>{ACCOUNT_KIND_LABELS[a.kind] || a.kind} · {a.includeInAvailable ? "entra no saldo disponível" : "fica separada do saldo disponível"}</p>
             </div>
             <div style={{ textAlign:"right" }}>
               <p style={{ fontWeight:700 }}>{fmt(a.balance)}</p>
-              <button onClick={()=>onDeleteAccount(a.id)} style={{ border:0, background:"none", color:"#6b7280", cursor:"pointer" }}>remover</button>
+              <button onClick={()=>confirmDelete(`Remover a conta "${a.name}"?`) && onDeleteAccount(a.id)} style={{ border:0, background:"none", color:"#6b7280", cursor:"pointer" }}>remover</button>
             </div>
           </div>
         ))}
@@ -124,13 +134,36 @@ export default function PlanningPage(props) {
             <div className="card" key={g.id}>
               <div style={{ display:"flex", justifyContent:"space-between" }}>
                 <strong>{g.name}</strong>
-                <button onClick={()=>onDeleteGoal(g.id)} style={{ background:"none", border:0, color:"#6b7280" }}>✕</button>
+                <button onClick={()=>confirmDelete(`Remover a reserva "${g.name}"?`) && onDeleteGoal(g.id)} style={{ background:"none", border:0, color:"#6b7280" }}>✕</button>
               </div>
               <p style={{ fontSize:12, color:"#8b8b9d", margin:"5px 0" }}>{fmt(g.current)} de {fmt(g.target)}</p>
               <div className="bar-bg"><div style={{ width:String(pct)+"%", height:"100%", background:"#4ade80" }}/></div>
               <div style={{ display:"flex", gap:8, marginTop:10 }}>
                 <button className="btn" onClick={()=>onContributeGoal(g.id,100)} style={{ flex:1,padding:8,background:"#1f2937",color:"#a5b4fc" }}>+ R$100</button>
                 <button className="btn" onClick={()=>onContributeGoal(g.id,500)} style={{ flex:1,padding:8,background:"#1f2937",color:"#a5b4fc" }}>+ R$500</button>
+              </div>
+              <div style={{ display:"flex", gap:8, marginTop:8 }}>
+                <input
+                  className="input"
+                  type="number"
+                  min="0"
+                  placeholder="Outro valor"
+                  value={customContribution[g.id] || ""}
+                  onChange={e=>setCustomContribution(prev=>({...prev,[g.id]:e.target.value}))}
+                  style={{ flex:1 }}
+                />
+                <button
+                  className="btn"
+                  onClick={()=>{
+                    const amount = Number(customContribution[g.id]) || 0;
+                    if (amount <= 0) return;
+                    onContributeGoal(g.id, amount);
+                    setCustomContribution(prev=>({...prev,[g.id]:""}));
+                  }}
+                  style={{ padding:"10px 12px", background:"#263244", color:"#f1f5f9" }}
+                >
+                  Aportar
+                </button>
               </div>
             </div>
           );
@@ -151,7 +184,7 @@ export default function PlanningPage(props) {
           <div className="card" key={card.id}>
             <div style={{ display:"flex", justifyContent:"space-between" }}>
               <strong>💳 {card.name}</strong>
-              <button onClick={()=>onDeleteCard(card.id)} style={{ background:"none", border:0, color:"#6b7280" }}>✕</button>
+              <button onClick={()=>confirmDelete(`Remover o cartão "${card.name}" e suas compras cadastradas?`) && onDeleteCard(card.id)} style={{ background:"none", border:0, color:"#6b7280" }}>✕</button>
             </div>
             <p style={{ fontSize:12, color:"#8b8b9d", marginTop:5 }}>
               fecha dia {card.closingDay} · vence dia {card.dueDay}{card.limit ? " · limite "+fmt(card.limit) : ""}
@@ -193,11 +226,11 @@ export default function PlanningPage(props) {
           <div className="card" key={p.id} style={{ display:"flex", justifyContent:"space-between" }}>
             <div>
               <p style={{ fontWeight:600 }}>{p.description || "Compra"}</p>
-              <p style={{ fontSize:11, color:"#6b7280" }}>{p.purchaseDate} · {p.installments}x</p>
+              <p style={{ fontSize:11, color:"#6b7280" }}>{formatDateBr(p.purchaseDate)} · {p.installments}x · {cards.find(c=>c.id===p.cardId)?.name || "Cartão"}</p>
             </div>
             <div style={{ textAlign:"right" }}>
               <p>{fmt(p.totalAmount)}</p>
-              <button onClick={()=>onDeleteCardPurchase(p.id)} style={{ background:"none", border:0, color:"#6b7280" }}>remover</button>
+              <button onClick={()=>confirmDelete("Remover esta compra da projeção do cartão?") && onDeleteCardPurchase(p.id)} style={{ background:"none", border:0, color:"#6b7280" }}>remover</button>
             </div>
           </div>
         ))}
@@ -220,7 +253,7 @@ export default function PlanningPage(props) {
           <p style={{ fontSize:20, fontWeight:700 }}>{fmt(simulation.baseLowest)}</p>
           <p style={{ fontSize:12, color:"#8b8b9d", marginTop:12 }}>Menor saldo com a compra</p>
           <p style={{ fontSize:20, fontWeight:700, color:simulation.newLowest<0?"#f87171":"#4ade80" }}>{fmt(simulation.newLowest)}</p>
-          <p style={{ fontSize:12, color:"#8b8b9d", marginTop:6 }}>Pior ponto em {simulation.date}. Impacto: {fmt(simulation.impact)}.</p>
+          <p style={{ fontSize:12, color:"#8b8b9d", marginTop:6 }}>Pior ponto em {formatDateBr(simulation.date)}. Impacto: {fmt(simulation.impact)}.</p>
           <p style={{ marginTop:12, fontWeight:700, color:simulation.newLowest<0?"#f87171":"#a5b4fc" }}>
             {simulation.newLowest<0 ? "⚠️ Essa compra faria o horizonte ficar negativo." : "✓ Pelo horizonte atual, a compra não leva o saldo abaixo de zero."}
           </p>

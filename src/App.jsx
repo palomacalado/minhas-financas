@@ -920,7 +920,6 @@ function FinanceApp({ user, onSignOut }) {
           { id:"horizonte", icon:"🔭", label:"Horizonte" },
           { id:"transacoes", icon:"💸", label:"Movimentos" },
           { id:"planejar", icon:"🧭", label:"Planejar" },
-          { id:"metas", icon:"🎯", label:"Metas" },
         ].map(t => (
           <button key={t.id} onClick={()=>setTab(t.id)} className="btn"
             style={{ flex:1, background:"none", color:tab===t.id?"#a5b4fc":"#4b5563", fontSize:10, fontWeight:600, padding:"4px 0", display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>

@@ -101,31 +101,49 @@ function ImportSheet({ onClose, onConfirm }) {
 
   const analyze = async () => {
     if (!preview) return;
-    setStep("loading"); setError("");
+    setStep("loading");
+    setError("");
+
     try {
-      const contentBlock = preview.type === "pdf"
-        ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: preview.base64 } }
-        : { type: "image", source: { type: "base64", media_type: preview.mediaType, data: preview.base64 } };
-
-      const prompt = `Analise este extrato/documento e extraia TODAS as transações. Retorne SOMENTE JSON:
-{"transacoes":[{"tipo":"despesa","descricao":"desc","valor":100.00,"data":"YYYY-MM-DD","categoria":"Alimentação"}]}
-Categorias: Salário,Freelance,Investimentos,Moradia,Alimentação,Transporte,Saúde,Lazer,Educação,Burgeria,Outros
-Burgeria=fornecedores de alimentos atacado/açougue/congelados ou receitas do CNPJ próprio.
-Data padrão se não encontrar: ${new Date().toISOString().split("T")[0]}`;
-
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, messages: [{ role: "user", content: [contentBlock, { type: "text", text: prompt }] }] }),
+      const res = await fetch("/api/import-transactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          base64: preview.base64,
+          mediaType: preview.mediaType,
+          kind: preview.type,
+        }),
       });
+
       const data = await res.json();
-      const text = data.content?.map(i => i.text || "").join("") || "";
-      const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
-      if (!parsed.transacoes?.length) { setError("Nenhuma transação encontrada."); setStep("upload"); return; }
-      const withIds = parsed.transacoes.map((t, i) => ({ ...t, id: Date.now() + i, valor: Math.abs(parseFloat(t.valor) || 0) }));
+
+      if (!res.ok) {
+        setError(data.error || "Não foi possível analisar o arquivo.");
+        setStep("upload");
+        return;
+      }
+
+      if (!data.transacoes?.length) {
+        setError("Nenhuma transação encontrada.");
+        setStep("upload");
+        return;
+      }
+
+      const withIds = data.transacoes.map((t, i) => ({
+        ...t,
+        id: Date.now() + i,
+        valor: Math.abs(parseFloat(t.valor) || 0),
+      }));
+
       setExtracted(withIds);
-      const sel = {}; withIds.forEach(t => { sel[t.id] = true; }); setSelected(sel);
+      const sel = {};
+      withIds.forEach(t => { sel[t.id] = true; });
+      setSelected(sel);
       setStep("review");
-    } catch { setError("Erro ao analisar. Tente novamente."); setStep("upload"); }
+    } catch {
+      setError("Erro ao analisar. Tente novamente.");
+      setStep("upload");
+    }
   };
 
   const confirm = () => { onConfirm(extracted.filter(t => selected[t.id])); onClose(); };
@@ -140,7 +158,7 @@ Data padrão se não encontrar: ${new Date().toISOString().split("T")[0]}`;
             <button onClick={onClose} style={{ background:"none", border:"none", color:"#6b7280", fontSize:22, cursor:"pointer" }}>✕</button>
           </div>
           <p style={{ fontSize:13, color:"#6b7280", marginBottom:16, lineHeight:1.6 }}>
-            Envie um <strong style={{ color:"#a5b4fc" }}>extrato PDF</strong> ou <strong style={{ color:"#a5b4fc" }}>foto</strong> de boleto. A IA reconhece gastos da <strong style={{ color:"#f97316" }}>Burgeria</strong> automaticamente.
+            Envie um <strong style={{ color:"#a5b4fc" }}>extrato PDF</strong> ou <strong style={{ color:"#a5b4fc" }}>foto</strong> de boleto. O arquivo é processado pelo servidor; nenhuma chave de IA fica exposta no navegador.
           </p>
           <div onDragOver={e=>{e.preventDefault();setDragOver(true)}} onDragLeave={()=>setDragOver(false)}
             onDrop={e=>{e.preventDefault();setDragOver(false);handleFile(e.dataTransfer.files[0])}}

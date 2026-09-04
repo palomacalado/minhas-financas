@@ -1,15 +1,11 @@
-const iso = (date) => {
-  const d = new Date(date);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-};
+import { parseLocalDate, toLocalIso } from "../utils/dateUtils";
+
+const iso = (date) => toLocalIso(date);
 
 const monthKey = (date) => iso(date).slice(0, 7);
 
 const addMonths = (date, amount) => {
-  const d = new Date(date);
+  const d = parseLocalDate(date);
   const day = d.getDate();
   d.setDate(1);
   d.setMonth(d.getMonth() + amount);
@@ -21,11 +17,11 @@ const addMonths = (date, amount) => {
 const isWithin = (date, start, end) => date >= start && date <= end;
 
 function expandTransaction(transaction, startDate, endDate) {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  const original = new Date(transaction.data);
+  const start = parseLocalDate(startDate);
+  const end = parseLocalDate(endDate);
+  const original = parseLocalDate(transaction.data);
   const recurrenceEnd = transaction.fimRecorrencia
-    ? new Date(transaction.fimRecorrencia)
+    ? parseLocalDate(transaction.fimRecorrencia)
     : end;
 
   if (!transaction.recorrente) {
@@ -40,7 +36,7 @@ function expandTransaction(transaction, startDate, endDate) {
 
   const expanded = [];
   const recurrenceType = transaction.tipoRecorrencia || "mensal";
-  let cursor = new Date(original);
+  let cursor = parseLocalDate(original);
 
   while (cursor <= end && cursor <= recurrenceEnd) {
     if (cursor >= start) {
@@ -52,7 +48,7 @@ function expandTransaction(transaction, startDate, endDate) {
       });
     }
     if (recurrenceType === "semanal") {
-      cursor = new Date(cursor);
+      cursor = parseLocalDate(cursor);
       cursor.setDate(cursor.getDate() + 7);
     } else {
       cursor = addMonths(cursor, 1);
@@ -68,8 +64,8 @@ export function buildProjection({
   startDate,
   endDate,
 }) {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
+  const start = parseLocalDate(startDate);
+  const end = parseLocalDate(endDate);
   const expanded = transactions.flatMap((t) => expandTransaction(t, start, end));
 
   const regularByDate = new Map();
@@ -90,7 +86,7 @@ export function buildProjection({
 
   const days = [];
   let balance = Number(initialBalance) || 0;
-  let cursor = new Date(start);
+  let cursor = parseLocalDate(start);
 
   while (cursor <= end) {
     const key = iso(cursor);
@@ -120,7 +116,7 @@ export function buildProjection({
       movements,
     });
 
-    cursor = new Date(cursor);
+    cursor = parseLocalDate(cursor);
     cursor.setDate(cursor.getDate() + 1);
   }
 

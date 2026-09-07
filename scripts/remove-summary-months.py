@@ -7,3 +7,4 @@ if old not in s:
     raise SystemExit('month selector condition not found')
 s=s.replace(old,new,1)
 p.write_text(s)
+# Apply the month selector only to Horizon.

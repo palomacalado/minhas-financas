@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { buildProjection } from "./services/projectionEngine";
 import HorizonPage from "./pages/HorizonPage";
 import PlanningPage from "./pages/PlanningPage";
@@ -77,159 +77,6 @@ const emptyForm = {
   parcelado: false, totalParcelas: 2,
 };
 
-// ── Import Sheet ─────────────────────────────────────────────────────────────
-function ImportSheet({ onClose, onConfirm }) {
-  const [step, setStep] = useState("upload");
-  const [preview, setPreview] = useState(null);
-  const [extracted, setExtracted] = useState([]);
-  const [selected, setSelected] = useState({});
-  const [error, setError] = useState("");
-  const [dragOver, setDragOver] = useState(false);
-  const fileRef = useRef();
-
-  const handleFile = async (file) => {
-    if (!file) return;
-    const isPdf = file.type === "application/pdf";
-    const isImg = file.type.startsWith("image/");
-    if (!isPdf && !isImg) { setError("Envie um PDF ou imagem (JPG, PNG, etc)."); return; }
-    setError("");
-    const base64 = await new Promise((res, rej) => {
-      const r = new FileReader(); r.onload = () => res(r.result.split(",")[1]); r.onerror = rej; r.readAsDataURL(file);
-    });
-    setPreview({ name: file.name, type: isPdf ? "pdf" : "image", base64, mediaType: file.type });
-  };
-
-  const analyze = async () => {
-    if (!preview) return;
-    setStep("loading");
-    setError("");
-
-    try {
-      const res = await fetch("/api/import-transactions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          base64: preview.base64,
-          mediaType: preview.mediaType,
-          kind: preview.type,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || "Não foi possível analisar o arquivo.");
-        setStep("upload");
-        return;
-      }
-
-      if (!data.transacoes?.length) {
-        setError("Nenhuma transação encontrada.");
-        setStep("upload");
-        return;
-      }
-
-      const withIds = data.transacoes.map((t, i) => ({
-        ...t,
-        id: Date.now() + i,
-        valor: Math.abs(parseFloat(t.valor) || 0),
-      }));
-
-      setExtracted(withIds);
-      const sel = {};
-      withIds.forEach(t => { sel[t.id] = true; });
-      setSelected(sel);
-      setStep("review");
-    } catch {
-      setError("Erro ao analisar. Tente novamente.");
-      setStep("upload");
-    }
-  };
-
-  const confirm = () => { onConfirm(extracted.filter(t => selected[t.id])); onClose(); };
-  const toggleAll = (v) => { const s = {}; extracted.forEach(t => { s[t.id] = v; }); setSelected(s); };
-
-  return (
-    <div className="overlay" onClick={onClose}>
-      <div className="sheet" onClick={e => e.stopPropagation()} style={{ maxHeight: "85vh", overflowY: "auto" }}>
-        {step === "upload" && (<>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
-            <h3 style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800 }}>📎 Importar com IA</h3>
-            <button onClick={onClose} style={{ background:"none", border:"none", color:"#6b7280", fontSize:22, cursor:"pointer" }}>✕</button>
-          </div>
-          <p style={{ fontSize:13, color:"#6b7280", marginBottom:16, lineHeight:1.6 }}>
-            Envie um <strong style={{ color:"#a5b4fc" }}>extrato PDF</strong> ou <strong style={{ color:"#a5b4fc" }}>foto</strong> de boleto. O arquivo é processado pelo servidor; nenhuma chave de IA fica exposta no navegador.
-          </p>
-          <div onDragOver={e=>{e.preventDefault();setDragOver(true)}} onDragLeave={()=>setDragOver(false)}
-            onDrop={e=>{e.preventDefault();setDragOver(false);handleFile(e.dataTransfer.files[0])}}
-            onClick={()=>fileRef.current.click()}
-            style={{ border:`2px dashed ${dragOver||preview?"#6366f1":"#2a2a38"}`, borderRadius:16, padding:32, textAlign:"center", cursor:"pointer", background:dragOver?"rgba(99,102,241,0.08)":preview?"rgba(99,102,241,0.05)":"#111118", transition:"all 0.2s", marginBottom:12 }}>
-            <input ref={fileRef} type="file" accept=".pdf,image/*" style={{ display:"none" }} onChange={e=>handleFile(e.target.files[0])} />
-            {preview ? (<>
-              <p style={{ fontSize:36, marginBottom:8 }}>{preview.type==="pdf"?"📄":"🖼️"}</p>
-              <p style={{ fontWeight:600, color:"#a5b4fc", fontSize:14 }}>{preview.name}</p>
-              <p style={{ fontSize:12, color:"#4b5563", marginTop:4 }}>Toque para trocar</p>
-            </>) : (<>
-              <p style={{ fontSize:40, marginBottom:8 }}>📂</p>
-              <p style={{ fontWeight:600, color:"#f1f5f9" }}>Toque para selecionar</p>
-              <p style={{ fontSize:12, color:"#4b5563", marginTop:4 }}>PDF ou imagem (JPG, PNG)</p>
-            </>)}
-          </div>
-          {error && <p style={{ color:"#f87171", fontSize:13, marginBottom:10, textAlign:"center" }}>{error}</p>}
-          <button className="btn" onClick={analyze} disabled={!preview}
-            style={{ background:preview?"linear-gradient(135deg,#6366f1,#8b5cf6)":"#1e1e2e", color:preview?"#fff":"#4b5563", padding:14, fontSize:15, borderRadius:12, width:"100%" }}>
-            ✨ Analisar com IA
-          </button>
-        </>)}
-
-        {step === "loading" && (
-          <div style={{ textAlign:"center", padding:"48px 0" }}>
-            <div style={{ fontSize:52, marginBottom:16, display:"inline-block", animation:"pulse 1s ease-in-out infinite" }}>🤖</div>
-            <p style={{ fontWeight:700, fontSize:16, marginBottom:8 }}>Analisando documento...</p>
-            <p style={{ color:"#6b7280", fontSize:13 }}>A IA está lendo e categorizando suas transações</p>
-            <style>{`@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}`}</style>
-          </div>
-        )}
-
-        {step === "review" && (<>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-            <h3 style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800 }}>✅ Revisar</h3>
-            <button onClick={onClose} style={{ background:"none", border:"none", color:"#6b7280", fontSize:22, cursor:"pointer" }}>✕</button>
-          </div>
-          <p style={{ fontSize:13, color:"#6b7280", marginBottom:12 }}>{extracted.length} transação(ões) encontrada(s).</p>
-          <div style={{ display:"flex", gap:8, marginBottom:12 }}>
-            <button className="btn" onClick={()=>toggleAll(true)} style={{ flex:1, background:"#1a1a24", color:"#a5b4fc", padding:"7px 0", fontSize:12 }}>Todas</button>
-            <button className="btn" onClick={()=>toggleAll(false)} style={{ flex:1, background:"#1a1a24", color:"#6b7280", padding:"7px 0", fontSize:12 }}>Nenhuma</button>
-          </div>
-          <div style={{ maxHeight:300, overflowY:"auto", marginBottom:12 }}>
-            {extracted.map(t => (
-              <div key={t.id} onClick={()=>setSelected(s=>({...s,[t.id]:!s[t.id]}))}
-                style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", borderRadius:12, marginBottom:6, cursor:"pointer", background:selected[t.id]?"rgba(99,102,241,0.1)":"#111118", border:`1px solid ${selected[t.id]?"#6366f1":"#1e1e2e"}`, transition:"all 0.15s" }}>
-                <div style={{ width:20, height:20, borderRadius:6, border:`2px solid ${selected[t.id]?"#6366f1":"#374151"}`, background:selected[t.id]?"#6366f1":"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, fontSize:11, color:"#fff", fontWeight:700 }}>
-                  {selected[t.id]?"✓":""}
-                </div>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <p style={{ fontSize:13, fontWeight:500, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{t.descricao}</p>
-                  <p style={{ fontSize:11, color:"#6b7280" }}>{t.categoria} · {t.data}</p>
-                </div>
-                <p style={{ fontWeight:700, color:t.tipo==="receita"?"#4ade80":"#f87171", fontSize:13, flexShrink:0 }}>
-                  {t.tipo==="receita"?"+":"-"}{fmt(t.valor)}
-                </p>
-              </div>
-            ))}
-          </div>
-          <div style={{ display:"flex", gap:8 }}>
-            <button className="btn" onClick={()=>{setStep("upload");setPreview(null)}} style={{ flex:1, background:"#1a1a24", color:"#6b7280", padding:12, fontSize:13 }}>← Voltar</button>
-            <button className="btn" onClick={confirm} style={{ flex:2, background:"linear-gradient(135deg,#6366f1,#8b5cf6)", color:"#fff", padding:12, fontSize:14 }}>
-              Importar {Object.values(selected).filter(Boolean).length}
-            </button>
-          </div>
-        </>)}
-      </div>
-    </div>
-  );
-}
-
 // ── Main App ─────────────────────────────────────────────────────────────────
 function FinanceApp({ user, onSignOut }) {
   const [tab, setTab] = useState("dashboard");
@@ -237,14 +84,12 @@ function FinanceApp({ user, onSignOut }) {
   const [metas, setMetas] = useState(initialMetas);
   const [orcamento, setOrcamento] = useState(initialOrcamento);
   const [showForm, setShowForm] = useState(false);
-  const [showImport, setShowImport] = useState(false);
   const [showMetaForm, setShowMetaForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [metaForm, setMetaForm] = useState({ nome:"", alvo:"", atual:"", cor:"#6366f1" });
   const [filtroMes, setFiltroMes] = useState(() => new Date().getMonth());
   const [filtroAno, setFiltroAno] = useState(() => new Date().getFullYear());
   const [aporteMeta, setAporteMeta] = useState({});
-  const [importSuccess, setImportSuccess] = useState(0);
   const [dataLoading, setDataLoading] = useState(true);
   const [dataError, setDataError] = useState("");
   const [formError, setFormError] = useState("");
@@ -377,22 +222,6 @@ function FinanceApp({ user, onSignOut }) {
     } catch (error) {
       console.error("Erro ao salvar movimentação", error);
       setDataError("Não consegui salvar essa movimentação. Tente novamente.");
-    }
-  };
-
-  const handleImportConfirm = async (newTs) => {
-    if (!newTs.length) return;
-    setDataError("");
-    try {
-      const saved = await createTransactions(newTs);
-      setTransactions(prev => [...prev, ...saved]);
-      setImportSuccess(saved.length);
-      setTimeout(() => setImportSuccess(0), 3500);
-      const d = parseLocalDate(saved[0].data);
-      setFiltroMes(d.getMonth()); setFiltroAno(d.getFullYear()); setTab("transacoes");
-    } catch (error) {
-      console.error("Erro ao importar movimentações", error);
-      setDataError("A importação foi lida, mas não consegui salvar no banco.");
     }
   };
 
@@ -620,7 +449,6 @@ function FinanceApp({ user, onSignOut }) {
         .section-label{font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 6px}
       `}</style>
 
-      {importSuccess > 0 && <div className="toast">✅ {importSuccess} transação(ões) importada(s)!</div>}
       {saveSuccess && <div className="toast">✅ {saveSuccess}</div>}
       {dataError && (
         <div style={{ margin:"12px 16px", padding:"10px 12px", background:"rgba(248,113,113,.12)", color:"#fca5a5", border:"1px solid rgba(248,113,113,.25)", borderRadius:12, fontSize:12 }}>
@@ -650,8 +478,6 @@ function FinanceApp({ user, onSignOut }) {
               style={{ background:"#1a1a24", color:"#a5b4fc", width:38, height:38, fontSize:16, display:"flex", alignItems:"center", justifyContent:"center" }}
             >↪</button>
             {tab==="transacoes" && (<>
-              <button className="btn" onClick={()=>setShowImport(true)}
-                style={{ background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.3)", color:"#a5b4fc", width:38, height:38, fontSize:18, display:"flex", alignItems:"center", justifyContent:"center" }}>📎</button>
               <button className="btn" onClick={()=>{setForm(emptyForm);setFormError("");setShowForm(true)}}
                 style={{ background:"#6366f1", color:"#fff", width:38, height:38, fontSize:22, display:"flex", alignItems:"center", justifyContent:"center" }}>+</button>
             </>)}
@@ -717,37 +543,6 @@ function FinanceApp({ user, onSignOut }) {
             </div>
           )}
 
-          <button className="btn" onClick={()=>{setTab("transacoes");setShowImport(true)}}
-            style={{ width:"100%", background:"linear-gradient(135deg,rgba(249,115,22,0.12),rgba(251,146,60,0.08))", border:"1px solid rgba(249,115,22,0.25)", color:"#fb923c", padding:"12px 16px", borderRadius:14, display:"flex", alignItems:"center", gap:10, marginBottom:12, fontSize:13 }}>
-            <span style={{ fontSize:22 }}>📎</span>
-            <div style={{ textAlign:"left" }}>
-              <p style={{ fontWeight:700 }}>Importar extrato ou boleto</p>
-              <p style={{ fontSize:11, color:"#6b7280", fontWeight:400 }}>PDF ou foto — processamento protegido no servidor</p>
-            </div>
-            <span style={{ marginLeft:"auto" }}>→</span>
-          </button>
-
-          {/* Burgeria highlight */}
-          {(() => {
-            const bR = transacoesMes.filter(t=>t.tipo==="receita"&&t.categoria==="Burgeria").reduce((s,t)=>s+t.valor,0);
-            const bD = transacoesMes.filter(t=>t.tipo==="despesa"&&t.categoria==="Burgeria").reduce((s,t)=>s+t.valor,0);
-            if (!bR && !bD) return null;
-            const lucro = bR - bD;
-            return (
-              <div style={{ background:"linear-gradient(135deg,rgba(249,115,22,0.15),rgba(234,88,12,0.1))", border:"1px solid rgba(249,115,22,0.3)", borderRadius:16, padding:16, marginBottom:12 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
-                  <span style={{ fontSize:18 }}>🍔</span>
-                  <p style={{ fontWeight:700, fontSize:14, color:"#fb923c" }}>Burgeria — este mês</p>
-                </div>
-                <div style={{ display:"flex", gap:16 }}>
-                  <div><p style={{ fontSize:11, color:"#6b7280" }}>Entradas</p><p style={{ fontWeight:700, color:"#4ade80", fontSize:14 }}>+{fmt(bR)}</p></div>
-                  <div><p style={{ fontSize:11, color:"#6b7280" }}>Custos</p><p style={{ fontWeight:700, color:"#f87171", fontSize:14 }}>-{fmt(bD)}</p></div>
-                  <div><p style={{ fontSize:11, color:"#6b7280" }}>Resultado</p><p style={{ fontWeight:700, color:lucro>=0?"#4ade80":"#f87171", fontSize:14 }}>{fmt(lucro)}</p></div>
-                </div>
-              </div>
-            );
-          })()}
-
           {/* Saldo do mês */}
           <div style={{ background:"linear-gradient(135deg,#6366f1,#8b5cf6)", borderRadius:20, padding:20, marginBottom:12 }}>
             <p style={{ fontSize:12, color:"rgba(255,255,255,0.7)", fontWeight:500 }}>Saldo do mês</p>
@@ -767,7 +562,7 @@ function FinanceApp({ user, onSignOut }) {
               return (
                 <div key={cat} style={{ marginBottom:12 }}>
                   <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
-                    <span style={{ fontSize:13 }}>{cat==="Burgeria"?"🍔 ":""}{cat}</span>
+                    <span style={{ fontSize:13 }}>{cat}</span>
                     <span style={{ fontSize:13, fontWeight:600 }}>{fmt(val)}</span>
                   </div>
                   <div className="bar-bg"><div style={{ width:`${pct}%`, background:COLORS[cat]||"#94a3b8", height:"100%", borderRadius:8 }}/></div>
@@ -806,8 +601,8 @@ function FinanceApp({ user, onSignOut }) {
             {transacoesMes.slice(-5).reverse().map(t => (
               <div key={t.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 0", borderBottom:"1px solid #1e1e2e" }}>
                 <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                  <div style={{ width:36, height:36, borderRadius:10, background:t.categoria==="Burgeria"?"rgba(249,115,22,0.15)":t.tipo==="receita"?"rgba(74,222,128,0.1)":"rgba(248,113,113,0.1)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16 }}>
-                    {t.categoria==="Burgeria"?"🍔":t.tipo==="receita"?"💰":"💸"}
+                  <div style={{ width:36, height:36, borderRadius:10, background:t.tipo==="receita"?"rgba(74,222,128,0.1)":"rgba(248,113,113,0.1)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16 }}>
+                    {t.tipo==="receita"?"💰":"💸"}
                   </div>
                   <div>
                     <p style={{ fontSize:13, fontWeight:500 }}>{t.descricao||t.categoria}</p>
@@ -861,10 +656,6 @@ function FinanceApp({ user, onSignOut }) {
               <p style={{ fontWeight:700, color:"#f87171", fontSize:15 }}>{fmt(totalDespesas)}</p>
             </div>
           </div>
-          <button className="btn" onClick={()=>setShowImport(true)}
-            style={{ width:"100%", background:"rgba(99,102,241,0.08)", border:"1px dashed rgba(99,102,241,0.4)", color:"#a5b4fc", padding:"11px 16px", borderRadius:12, display:"flex", alignItems:"center", gap:8, marginBottom:12, fontSize:13 }}>
-            <span>📎</span> Importar extrato ou boleto com IA
-          </button>
           {transacoesMes.length===0 ? (
             <div className="card" style={{ textAlign:"center", padding:32 }}>
               <p style={{ fontSize:32, marginBottom:8 }}>📭</p>
@@ -873,8 +664,8 @@ function FinanceApp({ user, onSignOut }) {
           ) : [...transacoesMes].reverse().map(t => (
             <div key={t.id} className="card" style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
               <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                <div style={{ width:40, height:40, borderRadius:12, background:t.categoria==="Burgeria"?"rgba(249,115,22,0.15)":t.tipo==="receita"?"rgba(74,222,128,0.12)":"rgba(248,113,113,0.12)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>
-                  {t.categoria==="Burgeria"?"🍔":t.tipo==="receita"?"💰":"💸"}
+                <div style={{ width:40, height:40, borderRadius:12, background:t.tipo==="receita"?"rgba(74,222,128,0.12)":"rgba(248,113,113,0.12)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>
+                  {t.tipo==="receita"?"💰":"💸"}
                 </div>
                 <div>
                   <p style={{ fontSize:14, fontWeight:500 }}>{t.descricao||t.categoria}</p>
@@ -904,11 +695,11 @@ function FinanceApp({ user, onSignOut }) {
             const gasto = gastosPorCategoria[cat]||0;
             const pct = limite>0?Math.min((gasto/limite)*100,100):0;
             const over = gasto>limite;
-            const cor = over?"#f87171":pct>75?"#fbbf24":cat==="Burgeria"?"#f97316":"#4ade80";
+            const cor = over?"#f87171":pct>75?"#fbbf24":"#4ade80";
             return (
               <div key={cat} className="card">
                 <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
-                  <span style={{ fontWeight:600, fontSize:14 }}>{cat==="Burgeria"?"🍔 ":""}{cat}</span>
+                  <span style={{ fontWeight:600, fontSize:14 }}>{cat}</span>
                   {over&&<span className="pill" style={{ background:"rgba(248,113,113,0.15)", color:"#f87171" }}>Estourado!</span>}
                 </div>
                 <div className="bar-bg" style={{ marginBottom:8 }}><div style={{ width:`${pct}%`, background:cor, height:"100%", borderRadius:8, transition:"width 0.5s" }}/></div>
@@ -980,8 +771,6 @@ function FinanceApp({ user, onSignOut }) {
         ))}
       </div>
 
-      {showImport&&<ImportSheet onClose={()=>setShowImport(false)} onConfirm={handleImportConfirm}/>}
-
       {/* ── Form Nova Transação ── */}
       {showForm && (
         <div className="overlay" onClick={()=>setShowForm(false)}>
@@ -1002,7 +791,7 @@ function FinanceApp({ user, onSignOut }) {
             <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:16 }}>
               <select className="select" value={form.categoria} onChange={e=>setForm(f=>({...f,categoria:e.target.value}))}>
                 <option value="">Categoria</option>
-                {(CATEGORIES[form.tipo] || []).map(c=><option key={c} value={c}>{c==="Burgeria"?"🍔 Burgeria":c}</option>)}
+                {(CATEGORIES[form.tipo] || []).map(c=><option key={c} value={c}>{c}</option>)}
               </select>
               <input className="input" placeholder="Descrição (opcional)" value={form.descricao} onChange={e=>setForm(f=>({...f,descricao:e.target.value}))}/>
               <input className="input" type="number" placeholder={form.tipo==="diario"?"Orçamento mensal (R$)":"Valor (R$)"} value={form.valor} onChange={e=>setForm(f=>({...f,valor:e.target.value}))}/>

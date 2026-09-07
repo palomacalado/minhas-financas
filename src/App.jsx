@@ -487,7 +487,7 @@ function FinanceApp({ user, onSignOut }) {
             )}
           </div>
         </div>
-        {(tab==="dashboard"||tab==="transacoes"||tab==="horizonte") && (
+        {tab==="horizonte" && (
           <div style={{ display:"flex", gap:8, marginTop:12, overflowX:"auto", paddingBottom:4 }}>
             {MONTHS.map((m,i) => (
               <button key={i} className="btn" onClick={()=>setFiltroMes(i)}
